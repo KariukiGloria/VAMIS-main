@@ -6,6 +6,8 @@
   <h2>System Alerts
     {% if unresolved %}<span class="badge-vamis badge-red ms-2">{{ unresolved|length }} active</span>{% endif %}
   </h2>
+
+  
   {% if unresolved %}
   <a href="{% url 'alert_resolve_all' %}" class="btn-outline-vamis"
      onclick="return confirm('Resolve all {{ unresolved|length }} alert(s)?')">

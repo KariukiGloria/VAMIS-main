@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}{{ vaccine.name }}{% endblock %}
+{% block page_title %}Vaccine Detail{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div class="d-flex align-items-center gap-3">
+    <div class="stat-icon blue" style="width:52px;height:52px;font-size:22px;flex-shrink:0;"><i class="fas fa-vial"></i></div>
+    <div>
+      <h2 style="margin:0;">{{ vaccine.name }}</h2>
+      <p class="text-muted mb-0" style="font-size:14px;">{{ vaccine.target_disease }}</p>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if user.is_admin %}<a href="{% url 'vaccine_edit' vaccine.pk %}" class="btn-outline-vamis"><i class="fas fa-edit"></i> Edit</a>{% endif %}
+    <a href="{% url 'vaccine_list' %}" class="btn-outline-vamis"><i class="fas fa-arrow-left"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><span><i class="fas fa-info-circle me-2" style="color:var(--blue)"></i>Details</span></div>
+      <div class="card-body">
+        <table style="width:100%;font-size:14px;border-spacing:0 10px;border-collapse:separate;">
+          <tr><td style="color:var(--text-muted);width:130px;">Method</td><td><span class="badge-vamis badge-blue">{{ vaccine.get_administration_method_display }}</span></td></tr>
+          <tr><td style="color:var(--text-muted);">Required Doses</td><td><strong>{{ vaccine.required_doses }}</strong></td></tr>
+          <tr><td style="color:var(--text-muted);">Min. Stock</td><td><strong>{{ vaccine.min_stock_level }}</strong> units</td></tr>
+          <tr><td style="color:var(--text-muted);">Target Disease</td><td>{{ vaccine.target_disease }}</td></tr>
+        </table>
+        {% if vaccine.description %}
+        <hr style="border-color:var(--border);">
+        <p style="font-size:13px;color:var(--text-muted);margin:0;">{{ vaccine.description }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-boxes me-2" style="color:var(--pink-dark)"></i>Batches ({{ batches.count }})</span>
+        {% if user.is_admin or user.is_distributor %}
+        <a href="{% url 'batch_add' %}" class="btn-vamis" style="font-size:12px;padding:5px 12px;"><i class="fas fa-plus"></i> Add Batch</a>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        {% if batches %}
+        <div style="overflow-x:auto;">
+        <table class="table-vamis w-100">
+          <thead><tr><th>Batch No.</th><th>Supplier</th><th>Qty Received</th><th>Date Received</th><th>Expiry</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for b in batches %}
+          <tr>
+            <td style="font-weight:600;">{{ b.batch_number }}</td>
+            <td style="font-size:13px;">{{ b.supplier.name|default:"—" }}</td>
+            <td>{{ b.quantity_received }}</td>
+            <td style="font-size:13px;color:var(--text-muted);">{{ b.date_received }}</td>
+            <td>{{ b.expiry_date }}</td>
+            <td>
+              {% if b.is_expired %}<span class="badge-vamis badge-red">Expired</span>
+              {% elif b.is_expiring_soon %}<span class="badge-vamis badge-orange">Expiring ({{ b.days_to_expiry }}d)</span>
+              {% else %}<span class="badge-vamis badge-green">Good</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><i class="fas fa-boxes"></i><p>No batches recorded for this vaccine</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

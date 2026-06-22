@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Batches{% endblock %}
+{% block page_title %}Vaccine Batches{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Vaccine Batches</h2>
+  {% if user.is_admin or user.is_distributor %}<a href="{% url 'batch_add' %}" class="btn-vamis"><i class="fas fa-plus"></i> Log Batch</a>{% endif %}
+</div>
+<div class="card mb-3"><div class="card-body" style="padding:12px 16px;">
+  <form method="get" class="d-flex gap-2 flex-wrap">
+    <div class="search-box" style="flex:1;min-width:180px;">
+      <i class="fas fa-search"></i>
+      <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search batch no. or vaccine...">
+    </div>
+    {% for s, l in status_choices|default:"" %}{% endfor %}
+    <select name="status" class="form-control" style="width:auto;" onchange="this.form.submit()">
+      <option value="">All Status</option>
+      <option value="good" {% if status == 'good' %}selected{% endif %}>Good</option>
+      <option value="expiring" {% if status == 'expiring' %}selected{% endif %}>Expiring Soon</option>
+      <option value="expired" {% if status == 'expired' %}selected{% endif %}>Expired</option>
+    </select>
+    <button type="submit" class="btn-outline-vamis"><i class="fas fa-filter"></i></button>
+    {% if query or status %}<a href="{% url 'batch_list' %}" class="btn-outline-vamis">Clear</a>{% endif %}
+  </form>
+</div></div>
+<div class="card"><div class="card-body p-0">
+  {% if batches %}
+  <div style="overflow-x:auto;">
+  <table class="table-vamis w-100">
+    <thead><tr><th>Vaccine</th><th>Batch No.</th><th>Supplier</th><th>Qty</th><th>Received</th><th>Expiry</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for b in batches %}
+    <tr>
+      <td><a href="{% url 'vaccine_detail' b.vaccine.pk %}" style="color:var(--blue);font-weight:600;text-decoration:none;">{{ b.vaccine.name }}</a></td>
+      <td style="font-size:13px;color:var(--text-muted);">{{ b.batch_number }}</td>
+      <td style="font-size:13px;">{{ b.supplier.name|default:"—" }}</td>
+      <td>{{ b.quantity_received }}</td>
+      <td style="font-size:13px;color:var(--text-muted);">{{ b.date_received }}</td>
+      <td>{{ b.expiry_date }}</td>
+      <td>
+        {% if b.is_expired %}<span class="badge-vamis badge-red"><i class="fas fa-times-circle"></i> Expired</span>
+        {% elif b.is_expiring_soon %}<span class="badge-vamis badge-orange"><i class="fas fa-exclamation-triangle"></i> {{ b.days_to_expiry }}d left</span>
+        {% else %}<span class="badge-vamis badge-green"><i class="fas fa-check-circle"></i> Good</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-state"><i class="fas fa-boxes"></i><p>No batches found</p></div>{% endif %}
+</div></div>
+{% endblock %}

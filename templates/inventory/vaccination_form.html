@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-syringe me-2" style="color:var(--pink-dark)"></i>{{ title }}</span>
+        <a href="{% url 'vaccination_list' %}" class="btn-outline-vamis" style="font-size:12px;padding:5px 12px;">
+          <i class="fas fa-arrow-left"></i> Back
+        </a>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+          <div class="alert-banner danger mb-3">
+            <i class="fas fa-exclamation-circle alert-icon"></i>
+            <div>{{ form.non_field_errors.0 }}</div>
+          </div>
+          {% endif %}
+          <div class="row">
+          {% for field in form %}
+          <div class="{% if field.name == 'notes' %}col-12{% else %}col-md-6{% endif %} mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">
+              {{ field.label }}{% if field.field.required %} <span style="color:var(--pink-dark)">*</span>{% endif %}
+            </label>
+            {{ field }}
+            {% if field.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;"><i class="fas fa-exclamation-circle me-1"></i>{{ field.errors.0 }}</div>{% endif %}
+            {% if field.help_text %}<div style="color:var(--text-muted);font-size:12px;margin-top:3px;">{{ field.help_text }}</div>{% endif %}
+          </div>
+          {% endfor %}
+          </div>
+          <div class="alert-banner info mt-2 mb-3">
+            <i class="fas fa-info-circle alert-icon"></i>
+            <div style="font-size:13px;">Recording a vaccination will automatically deduct <strong>1 dose</strong> from the selected batch's stock.</div>
+          </div>
+          <div class="d-flex gap-2 mt-2">
+            <button type="submit" class="btn-pink"><i class="fas fa-syringe"></i> Record Vaccination</button>
+            <a href="{% url 'vaccination_list' %}" class="btn-outline-vamis">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

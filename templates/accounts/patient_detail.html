@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}{{ patient.full_name }}{% endblock %}
+{% block page_title %}Patient Profile{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div class="d-flex align-items-center gap-3">
+    <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--blue-mid),var(--pink-dark));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;flex-shrink:0;">
+      {{ patient.first_name|first|upper }}{{ patient.last_name|first|upper }}
+    </div>
+    <div>
+      <h2 style="margin:0;">{{ patient.full_name }}</h2>
+      <p class="text-muted mb-0" style="font-size:13px;">{{ patient.age }} years · {{ patient.get_gender_display }} · Registered {{ patient.created_at|date:"M d, Y" }}</p>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'vaccination_add' %}?patient={{ patient.pk }}" class="btn-vamis"><i class="fas fa-syringe"></i> Vaccinate</a>
+    <a href="{% url 'patient_edit' patient.pk %}" class="btn-outline-vamis"><i class="fas fa-edit"></i> Edit</a>
+    <a href="{% url 'patient_list' %}" class="btn-outline-vamis"><i class="fas fa-arrow-left"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><span><i class="fas fa-id-card me-2" style="color:var(--blue)"></i>Patient Info</span></div>
+      <div class="card-body">
+        <table style="width:100%;font-size:14px;border-collapse:separate;border-spacing:0 8px;">
+          <tr><td style="color:var(--text-muted);width:120px;">Full Name</td><td><strong>{{ patient.full_name }}</strong></td></tr>
+          <tr><td style="color:var(--text-muted);">Date of Birth</td><td>{{ patient.date_of_birth|date:"M d, Y" }}</td></tr>
+          <tr><td style="color:var(--text-muted);">Age</td><td>{{ patient.age }} years</td></tr>
+          <tr><td style="color:var(--text-muted);">Gender</td><td><span class="badge-vamis {% if patient.gender == 'M' %}badge-blue{% else %}badge-pink{% endif %}">{{ patient.get_gender_display }}</span></td></tr>
+          <tr><td style="color:var(--text-muted);">Phone</td><td>{{ patient.phone|default:"Not provided" }}</td></tr>
+          <tr><td style="color:var(--text-muted);">National ID</td><td>{{ patient.national_id|default:"Not provided" }}</td></tr>
+          <tr><td style="color:var(--text-muted);">Guardian</td><td>{{ patient.guardian_name|default:"N/A" }}</td></tr>
+          <tr><td style="color:var(--text-muted);">Facility</td><td>{{ patient.facility.name|default:"Not assigned" }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-history me-2" style="color:var(--pink-dark)"></i>Vaccination History ({{ vaccinations.count }})</span>
+        <a href="{% url 'vaccination_add' %}?patient={{ patient.pk }}" class="btn-vamis" style="font-size:12px;padding:5px 12px;"><i class="fas fa-plus"></i> Add</a>
+      </div>
+      <div class="card-body p-0">
+        {% if vaccinations %}
+        <div style="overflow-x:auto;">
+        <table class="table-vamis w-100">
+          <thead><tr><th>Vaccine</th><th>Dose</th><th>Facility</th><th>Date</th><th>Given By</th></tr></thead>
+          <tbody>
+          {% for v in vaccinations %}
+          <tr>
+            <td><strong>{{ v.batch.vaccine.name }}</strong><br><span style="font-size:11px;color:var(--text-muted);">Batch: {{ v.batch.batch_number }}</span></td>
+            <td><span class="badge-vamis badge-blue">Dose {{ v.dose_sequence }} of {{ v.batch.vaccine.required_doses }}</span></td>
+            <td>{{ v.facility.name }}</td>
+            <td style="font-size:13px;color:var(--text-muted);">{{ v.date_administered|date:"M d, Y" }}</td>
+            <td style="font-size:13px;">{{ v.administered_by.get_full_name|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-syringe"></i>
+          <p>No vaccinations recorded yet</p>
+          <a href="{% url 'vaccination_add' %}?patient={{ patient.pk }}" class="btn-vamis mt-2"><i class="fas fa-syringe"></i> Record First Vaccination</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

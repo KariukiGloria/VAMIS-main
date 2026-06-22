@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Stock{% endblock %}
+{% block page_title %}Stock Transactions{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Stock Transactions</h2>
+  <div class="d-flex gap-2">
+    <a href="{% url 'stock_add' %}" class="btn-outline-vamis"><i class="fas fa-plus"></i> Record</a>
+    <a href="{% url 'restock_add' %}" class="btn-vamis"><i class="fas fa-truck"></i> Request Restock</a>
+  </div>
+</div>
+<div class="card mb-3"><div class="card-body" style="padding:12px 16px;">
+  <form method="get" class="d-flex gap-2 flex-wrap align-items-center">
+    <span class="text-muted" style="font-size:13px;">Filter by type:</span>
+    <a href="{% url 'stock_list' %}" class="badge-vamis {% if not type_filter %}badge-blue{% else %}badge-grey{% endif %}" style="cursor:pointer;text-decoration:none;">All</a>
+    {% for val, label in transaction_types %}
+    <a href="?type={{ val }}" class="badge-vamis {% if type_filter == val %}badge-blue{% else %}badge-grey{% endif %}" style="cursor:pointer;text-decoration:none;">{{ label }}</a>
+    {% endfor %}
+  </form>
+</div></div>
+<div class="card"><div class="card-body p-0">
+  {% if transactions %}
+  <div style="overflow-x:auto;">
+  <table class="table-vamis w-100">
+    <thead><tr><th>Vaccine / Batch</th><th>Facility</th><th>Type</th><th>Quantity</th><th>Date</th><th>By</th></tr></thead>
+    <tbody>
+    {% for t in transactions %}
+    <tr>
+      <td>
+        <strong>{{ t.batch.vaccine.name }}</strong>
+        <br><span style="font-size:11px;color:var(--text-muted);">{{ t.batch.batch_number }}</span>
+      </td>
+      <td>{{ t.facility.name }}</td>
+      <td>
+        <span class="badge-vamis {% if t.transaction_type == 'delivery' %}badge-green{% elif t.transaction_type == 'usage' %}badge-blue{% elif t.transaction_type in 'expiry,disposal' %}badge-red{% else %}badge-grey{% endif %}">
+          {{ t.get_transaction_type_display }}
+        </span>
+      </td>
+      <td style="font-weight:600;">
+        <span style="color:{% if t.transaction_type == 'delivery' %}#16a34a{% else %}#dc2626{% endif %};">
+          {% if t.transaction_type == 'delivery' %}+{% else %}-{% endif %}{{ t.quantity_moved }}
+        </span>
+      </td>
+      <td style="font-size:13px;color:var(--text-muted);">{{ t.transaction_date }}</td>
+      <td style="font-size:13px;">{{ t.performed_by.get_full_name|default:t.performed_by.username|default:"System" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-state"><i class="fas fa-warehouse"></i><p>No stock transactions yet</p></div>{% endif %}
+</div></div>
+{% endblock %}

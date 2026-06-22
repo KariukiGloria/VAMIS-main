@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Alerts{% endblock %}
+{% block page_title %}Alerts &amp; Notifications{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>System Alerts
+    {% if unresolved %}<span class="badge-vamis badge-red ms-2">{{ unresolved|length }} active</span>{% endif %}
+  </h2>
+  {% if unresolved %}
+  <a href="{% url 'alert_resolve_all' %}" class="btn-outline-vamis"
+     onclick="return confirm('Resolve all {{ unresolved|length }} alert(s)?')">
+    <i class="fas fa-check-double"></i> Resolve All
+  </a>
+  {% endif %}
+</div>
+
+<div class="card mb-3">
+  <div class="card-body" style="padding:12px 16px;">
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+      <span class="text-muted" style="font-size:13px;">Filter severity:</span>
+      <a href="{% url 'alert_list' %}" class="badge-vamis {% if not severity_filter %}badge-blue{% else %}badge-grey{% endif %}" style="cursor:pointer;text-decoration:none;">All</a>
+      <a href="?severity=danger" class="badge-vamis {% if severity_filter == 'danger' %}badge-red{% else %}badge-grey{% endif %}" style="cursor:pointer;text-decoration:none;">Danger</a>
+      <a href="?severity=warning" class="badge-vamis {% if severity_filter == 'warning' %}badge-orange{% else %}badge-grey{% endif %}" style="cursor:pointer;text-decoration:none;">Warning</a>
+      <a href="?severity=info" class="badge-vamis {% if severity_filter == 'info' %}badge-blue{% else %}badge-grey{% endif %}" style="cursor:pointer;text-decoration:none;">Info</a>
+    </div>
+  </div>
+</div>
+
+{% if unresolved %}
+<div class="section-title"><i class="fas fa-exclamation-circle me-2" style="color:#f43f5e;"></i>Active Alerts</div>
+{% for alert in unresolved %}
+<div class="alert-banner {{ alert.severity }} mb-2" style="align-items:flex-start;">
+  <i class="fas {% if alert.severity == 'danger' %}fa-exclamation-circle{% elif alert.severity == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %} alert-icon mt-1"></i>
+  <div style="flex:1;">
+    <strong style="font-size:14px;">{{ alert.title }}</strong>
+    <p style="margin:4px 0 4px;font-size:13px;opacity:.9;">{{ alert.message }}</p>
+    <div style="font-size:11px;opacity:.65;display:flex;gap:12px;flex-wrap:wrap;">
+      <span><i class="fas fa-clock me-1"></i>{{ alert.created_at|date:"M d, Y H:i" }}</span>
+      {% if alert.facility %}<span><i class="fas fa-hospital me-1"></i>{{ alert.facility.name }}</span>{% endif %}
+      {% if alert.vaccine %}<span><i class="fas fa-vial me-1"></i>{{ alert.vaccine.name }}</span>{% endif %}
+    </div>
+  </div>
+  <a href="{% url 'alert_resolve' alert.pk %}" class="btn-outline-vamis ms-2" style="font-size:11px;padding:5px 12px;flex-shrink:0;">
+    <i class="fas fa-check"></i> Resolve
+  </a>
+</div>
+{% endfor %}
+{% else %}
+<div class="card mb-3">
+  <div class="card-body empty-state" style="padding:40px;">
+    <i class="fas fa-check-circle" style="color:#22c55e;font-size:48px;opacity:1;"></i>
+    <p style="margin-top:12px;font-weight:600;font-size:16px;">All systems healthy — no active alerts!</p>
+  </div>
+</div>
+{% endif %}
+
+{% if resolved %}
+<div class="section-title mt-4"><i class="fas fa-check-circle me-2" style="color:#22c55e;"></i>Recently Resolved</div>
+{% for alert in resolved %}
+<div class="alert-banner info mb-2" style="opacity:.55;">
+  <i class="fas fa-check-circle alert-icon"></i>
+  <div style="flex:1;">
+    <strong style="font-size:13px;">{{ alert.title }}</strong>
+    <p style="margin:2px 0 0;font-size:12px;">
+      Resolved by <strong>{{ alert.resolved_by.get_full_name|default:alert.resolved_by.username }}</strong>
+      on {{ alert.resolved_at|date:"M d, Y H:i" }}
+    </p>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

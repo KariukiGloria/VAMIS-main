@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Restock Requests{% endblock %}
+{% block page_title %}Restock Requests{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Restock Requests</h2>
+  {% if not user.is_distributor %}
+  <a href="{% url 'restock_add' %}" class="btn-vamis"><i class="fas fa-plus"></i> New Request</a>
+  {% endif %}
+</div>
+<div class="card mb-3">
+  <div class="card-body" style="padding:12px 16px;">
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+      <span class="text-muted" style="font-size:13px;">Filter:</span>
+      <a href="{% url 'restock_list' %}" class="badge-vamis {% if not status_filter %}badge-blue{% else %}badge-grey{% endif %}" style="cursor:pointer;text-decoration:none;">All</a>
+      {% for val, label in status_choices %}
+      <a href="?status={{ val }}" class="badge-vamis {% if status_filter == val %}badge-blue{% else %}badge-grey{% endif %}" style="cursor:pointer;text-decoration:none;">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body p-0">
+    {% if requests %}
+    <div style="overflow-x:auto;">
+    <table class="table-vamis w-100">
+      <thead>
+        <tr><th>Vaccine</th><th>Facility</th><th>Supplier</th><th>Qty Needed</th><th>Status</th><th>Requested</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+      {% for r in requests %}
+      <tr>
+        <td><strong>{{ r.vaccine.name }}</strong></td>
+        <td>{{ r.facility.name }}</td>
+        <td style="font-size:13px;">{{ r.supplier.name|default:"Any" }}</td>
+        <td><strong>{{ r.quantity_needed }}</strong></td>
+        <td>
+          <span class="badge-vamis {% if r.status == 'pending' %}badge-orange{% elif r.status == 'fulfilled' %}badge-green{% elif r.status == 'cancelled' %}badge-red{% else %}badge-blue{% endif %}">
+            {{ r.get_status_display }}
+          </span>
+        </td>
+        <td style="font-size:13px;color:var(--text-muted);">{{ r.date_requested|date:"M d, Y" }}</td>
+        <td>
+          {% if r.status == 'pending' %}
+            {% if user.is_admin or user.is_distributor %}
+            <form method="post" action="{% url 'restock_update_status' r.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="acknowledged">
+              <button type="submit" class="btn-outline-vamis" style="font-size:11px;padding:4px 8px;" title="Acknowledge">
+                <i class="fas fa-eye"></i>
+              </button>
+            </form>
+            <form method="post" action="{% url 'restock_update_status' r.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="fulfilled">
+              <button type="submit" class="btn-vamis" style="font-size:11px;padding:4px 8px;" title="Fulfill">
+                <i class="fas fa-check"></i> Fulfill
+              </button>
+            </form>
+            {% endif %}
+          {% elif r.status == 'acknowledged' %}
+            {% if user.is_admin or user.is_distributor %}
+            <form method="post" action="{% url 'restock_update_status' r.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="fulfilled">
+              <button type="submit" class="btn-vamis" style="font-size:11px;padding:4px 8px;">
+                <i class="fas fa-check"></i> Fulfill
+              </button>
+            </form>
+            {% endif %}
+          {% elif r.status == 'fulfilled' %}
+            <span style="font-size:12px;color:var(--text-muted);">{{ r.date_fulfilled|date:"M d" }}</span>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="fas fa-truck"></i>
+      <p>No restock requests{% if status_filter %} with status "{{ status_filter }}"{% endif %}</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

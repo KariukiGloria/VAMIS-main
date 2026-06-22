@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}VAMIS{% endblock %} · Vaccine Availability MIS</title>
+  {% load static %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="{% static 'css/vamis.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{# Django messages → rendered as toasts by JS #}
+{% if messages %}{% for msg in messages %}
+<span class="d-none" data-toast
+  data-message="{{ msg }}"
+  data-type="{% if 'error' in msg.tags %}error{% elif 'warning' in msg.tags %}warning{% elif 'success' in msg.tags %}success{% else %}info{% endif %}">
+</span>
+{% endfor %}{% endif %}
+
+{% if user.is_authenticated %}
+{# ── SIDEBAR ── #}
+<nav id="sidebar">
+  <div class="brand d-flex align-items-center gap-3">
+    <div class="brand-logo"><i class="fas fa-syringe"></i></div>
+    <div class="brand-text">
+      <h5>VAMIS</h5><small>Vaccine Management IS</small>
+    </div>
+  </div>
+
+  {% if user.is_patient %}
+  {# ── PATIENT SIDEBAR ── #}
+  <div class="nav-section">
+    <div class="nav-section-label">My Portal</div>
+    <a href="{% url 'patient_portal' %}" class="nav-link"><i class="fas fa-home"></i><span>My Dashboard</span></a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">Reminders</div>
+    {% for reminder in patient_reminders %}
+    <div class="nav-reminder {% if reminder.urgency == 'urgent' %}urgent{% else %}upcoming{% endif %}">
+      <div class="reminder-name">{{ reminder.next_vaccine_name|default:reminder.batch.vaccine.name }}</div>
+      <div class="reminder-date">{{ reminder.next_vaccine_date|date:"M d, Y" }}</div>
+      {% if reminder.days_until >= 0 and reminder.days_until <= 3 %}
+      <span class="reminder-badge urgent-badge">{{ reminder.days_until }} day{{ reminder.days_until|pluralize }} away</span>
+      {% else %}
+      <span class="reminder-badge upcoming-badge">{{ reminder.next_vaccine_date|date:"M d" }}</span>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div style="padding:12px 20px;font-size:12px;color:rgba(199,223,247,0.5);">No upcoming vaccines</div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  {# ── STAFF SIDEBAR ── #}
+  <div class="nav-section">
+    <div class="nav-section-label">Overview</div>
+    <a href="{% url 'dashboard' %}" class="nav-link"><i class="fas fa-th-large"></i><span>Dashboard</span></a>
+    <a href="{% url 'alert_list' %}" class="nav-link">
+      <i class="fas fa-bell"></i><span>Alerts</span>
+      {% if unread_alerts_count %}<span class="badge-pill">{{ unread_alerts_count }}</span>{% endif %}
+    </a>
+  </div>
+
+  {% if not user.is_distributor %}
+  <div class="nav-section">
+    <div class="nav-section-label">Clinical</div>
+    <a href="{% url 'patient_list' %}" class="nav-link"><i class="fas fa-users"></i><span>Patients</span></a>
+    {% if user.is_health_worker %}
+    <a href="{% url 'child_register' %}" class="nav-link"><i class="fas fa-baby"></i><span>Register child</span></a>
+    {% endif %}
+    <a href="{% url 'vaccination_list' %}" class="nav-link"><i class="fas fa-notes-medical"></i><span>Vaccinations</span></a>
+  </div>
+  {% endif %}
+
+  <div class="nav-section">
+    <div class="nav-section-label">Inventory</div>
+    <a href="{% url 'vaccine_list' %}" class="nav-link"><i class="fas fa-vial"></i><span>Vaccines</span></a>
+    <a href="{% url 'batch_list' %}" class="nav-link"><i class="fas fa-boxes"></i><span>Batches</span></a>
+    <a href="{% url 'stock_list' %}" class="nav-link"><i class="fas fa-warehouse"></i><span>Stock</span></a>
+    <a href="{% url 'restock_list' %}" class="nav-link"><i class="fas fa-truck"></i><span>Restock</span></a>
+  </div>
+
+  {% if user.is_admin %}
+  <div class="nav-section">
+    <div class="nav-section-label">Administration</div>
+    <a href="{% url 'reports' %}" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reports</span></a>
+    <a href="{% url 'facility_list' %}" class="nav-link"><i class="fas fa-hospital"></i><span>Facilities</span></a>
+    <a href="{% url 'supplier_list' %}" class="nav-link"><i class="fas fa-industry"></i><span>Suppliers</span></a>
+    <a href="{% url 'user_list' %}" class="nav-link"><i class="fas fa-user-cog"></i><span>Users</span></a>
+  </div>
+  {% endif %}
+  {% endif %}{# end staff sidebar #}
+
+  <div class="user-card">
+    <div class="user-avatar">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</div>
+    <div class="user-info">
+      <p class="user-name">{{ user.get_full_name|default:user.username }}</p>
+      <p class="user-role">{{ user.get_role_display }}</p>
+    </div>
+    <a href="{% url 'logout' %}" class="logout-btn" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
+  </div>
+</nav>
+
+{# ── MAIN CONTENT ── #}
+<div id="main-content">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu">
+        <i class="fas fa-bars"></i>
+      </button>
+      <span class="topbar-title">{% block page_title %}VAMIS{% endblock %}</span>
+    </div>
+    <div class="topbar-right">
+      {% if user.facility %}
+        <span class="badge-vamis badge-blue d-none d-md-inline-flex">
+          <i class="fas fa-hospital-alt"></i>&nbsp;{{ user.facility.name }}
+        </span>
+      {% endif %}
+      <a href="{% url 'alert_list' %}" class="alert-bell" title="Alerts">
+        <i class="fas fa-bell"></i>
+        {% if unread_alerts_count %}<span class="badge">{{ unread_alerts_count }}</span>{% endif %}
+      </a>
+      <span class="badge-vamis badge-pink d-none d-sm-inline-flex">{{ user.get_role_display }}</span>
+    </div>
+  </header>
+  <div class="page-body">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+{% else %}
+  {% block auth_content %}{% endblock %}
+{% endif %}
+
+<div id="toast-container" class="toast-container"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.3/cdn.min.js" defer></script>
+{% load static %}<script src="{% static 'js/vamis.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

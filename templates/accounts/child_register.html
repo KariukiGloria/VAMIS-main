@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Register child{% endblock %}
+{% block page_title %}Register child{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7 col-xl-6">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-baby me-2" style="color:var(--pink-dark)"></i>Register child</span>
+        <a href="{% url 'patient_list' %}" class="btn-outline-vamis" style="font-size:12px;padding:5px 12px;">
+          <i class="fas fa-arrow-left"></i> Back
+        </a>
+      </div>
+      <div class="card-body">
+
+        {% if form.non_field_errors %}
+        <div class="alert-banner danger mb-3">
+          <i class="fas fa-exclamation-circle alert-icon"></i>
+          <div>{{ form.non_field_errors.0 }}</div>
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <p style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">
+            Child details
+          </p>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">First name <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.first_name }}
+              {% if form.first_name.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.first_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Last name <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.last_name }}
+              {% if form.last_name.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.last_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Date of birth <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.date_of_birth }}
+              {% if form.date_of_birth.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.date_of_birth.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Facility <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.facility }}
+              {% if form.facility.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.facility.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          <hr style="border-color:var(--border);margin:8px 0 16px;">
+          <p style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">
+            Guardian details
+          </p>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Guardian name <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.guardian_name }}
+              {% if form.guardian_name.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.guardian_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Contact number <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.guardian_contact }}
+              {% if form.guardian_contact.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.guardian_contact.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-2">
+            <button type="submit" class="btn-pink">
+              <i class="fas fa-save"></i> Register child
+            </button>
+            <a href="{% url 'patient_list' %}" class="btn-outline-vamis">Cancel</a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

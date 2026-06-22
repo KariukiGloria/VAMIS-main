@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Users{% endblock %}
+{% block page_title %}System Users{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>System Users</h2>
+  <a href="{% url 'user_create' %}" class="btn-vamis"><i class="fas fa-user-plus"></i> Add User</a>
+</div>
+<div class="card">
+  <div class="card-header">
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'user_list' %}" class="btn-{% if not role_filter %}vamis{% else %}outline-vamis{% endif %}" style="font-size:12px;padding:5px 12px;">All</a>
+      {% for val, label in role_choices %}
+      <a href="?role={{ val }}" class="btn-{% if role_filter == val %}vamis{% else %}outline-vamis{% endif %}" style="font-size:12px;padding:5px 12px;">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <span class="text-muted" style="font-size:13px;">{{ users|length }} user{{ users|length|pluralize }}</span>
+  </div>
+  <div class="card-body p-0">
+    <div style="overflow-x:auto;">
+    <table class="table-vamis w-100">
+      <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Facility</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for u in users %}
+      <tr>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--blue-mid),var(--pink-dark));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px;flex-shrink:0;">
+              {{ u.first_name|first|upper }}{{ u.last_name|first|upper }}
+            </div>
+            <div>
+              <div style="font-weight:600;font-size:14px;">{{ u.get_full_name|default:u.username }}</div>
+              <div style="font-size:11px;color:var(--text-muted);">@{{ u.username }}</div>
+            </div>
+          </div>
+        </td>
+        <td style="font-size:13px;">{{ u.email|default:"—" }}</td>
+        <td>
+          <span class="badge-vamis {% if u.role == 'admin' %}badge-pink{% elif u.role == 'distributor' %}badge-orange{% else %}badge-blue{% endif %}">
+            {{ u.get_role_display }}
+          </span>
+        </td>
+        <td style="font-size:13px;">{{ u.facility.name|default:"—" }}</td>
+        <td>
+          <span class="badge-vamis {% if u.is_active %}badge-green{% else %}badge-red{% endif %}">
+            {% if u.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+        </td>
+        <td>
+          <div class="d-flex gap-1">
+            <a href="{% url 'user_edit' u.pk %}" class="btn-outline-vamis" style="font-size:11px;padding:4px 8px;" title="Edit"><i class="fas fa-edit"></i></a>
+            {% if u.pk != request.user.pk %}
+            <a href="{% url 'user_toggle_active' u.pk %}"
+               class="btn-{% if u.is_active %}outline-vamis{% else %}vamis{% endif %}"
+               style="font-size:11px;padding:4px 8px;"
+               title="{% if u.is_active %}Deactivate{% else %}Activate{% endif %}"
+               onclick="return confirm('{% if u.is_active %}Deactivate{% else %}Activate{% endif %} {{ u.get_full_name }}?')">
+              <i class="fas {% if u.is_active %}fa-ban{% else %}fa-check{% endif %}"></i>
+            </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

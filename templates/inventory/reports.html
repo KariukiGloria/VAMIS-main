@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports & Analytics{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Reports &amp; Analytics</h2>
+  <span style="font-size:13px;color:var(--text-muted);"><i class="fas fa-calendar me-1"></i> As of today</span>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="fas fa-syringe"></i></div>
+      <div><div class="stat-value">{{ total_vaccinations }}</div><div class="stat-label">Total Vaccinations</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon pink"><i class="fas fa-users"></i></div>
+      <div><div class="stat-value">{{ total_patients }}</div><div class="stat-label">Total Patients</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div>
+      <div><div class="stat-value">{{ low_stock_count }}</div><div class="stat-label">Low Stock Alerts</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon orange"><i class="fas fa-clock"></i></div>
+      <div><div class="stat-value">{{ expiry_count }}</div><div class="stat-label">Expiry Warnings</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><span><i class="fas fa-chart-bar me-2" style="color:var(--blue)"></i>Vaccinations (Last 6 Months)</span></div>
+      <div class="card-body">
+        {% if monthly_vacc %}
+        <div style="display:flex;align-items:flex-end;gap:8px;height:160px;padding-bottom:8px;">
+        {% with max_count=monthly_vacc|last %}
+        {% for m in monthly_vacc %}
+          {% widthratio m.count 1 1 as bar_val %}
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <span style="font-size:11px;color:var(--text-muted);">{{ m.count }}</span>
+            <div style="width:100%;background:linear-gradient(180deg,var(--blue-mid),var(--blue));border-radius:4px 4px 0 0;
+              height:{% widthratio m.count monthly_vacc.0.count 120 %}px;min-height:4px;transition:height .3s;">
+            </div>
+            <span style="font-size:10px;color:var(--text-muted);">{{ m.month|date:"M" }}</span>
+          </div>
+        {% endfor %}
+        {% endwith %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:20px;"><i class="fas fa-chart-bar"></i><p>No vaccination data yet</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><span><i class="fas fa-vial me-2" style="color:var(--pink-dark)"></i>Current Stock by Vaccine</span></div>
+      <div class="card-body p-0">
+        <table class="table-vamis w-100">
+          <thead><tr><th>Vaccine</th><th>Stock</th><th>Min.</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for vs in vaccine_stock %}
+          <tr>
+            <td><strong>{{ vs.vaccine.name }}</strong></td>
+            <td>{{ vs.stock }}</td>
+            <td style="font-size:13px;color:var(--text-muted);">{{ vs.vaccine.min_stock_level }}</td>
+            <td>
+              {% if vs.stock <= 0 %}
+                <span class="badge-vamis badge-red">Out of Stock</span>
+              {% elif vs.stock < vs.vaccine.min_stock_level %}
+                <span class="badge-vamis badge-orange">Low</span>
+              {% else %}
+                <span class="badge-vamis badge-green">OK</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-center text-muted" style="padding:20px;">No vaccines in system</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Suppliers{% endblock %}
+{% block page_title %}Suppliers{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Suppliers</h2>
+  <a href="{% url 'supplier_add' %}" class="btn-vamis"><i class="fas fa-plus"></i> Add Supplier</a>
+</div>
+<div class="card">
+  <div class="card-body p-0">
+    {% if suppliers %}
+    <div style="overflow-x:auto;">
+    <table class="table-vamis w-100">
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Address</th></tr></thead>
+      <tbody>
+      {% for s in suppliers %}
+      <tr>
+        <td><strong>{{ s.name }}</strong></td>
+        <td style="font-size:13px;">{{ s.contact_email|default:"—" }}</td>
+        <td style="font-size:13px;">{{ s.phone|default:"—" }}</td>
+        <td style="font-size:13px;color:var(--text-muted);">{{ s.address|default:"—"|truncatechars:50 }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="fas fa-industry"></i>
+      <p>No suppliers added yet</p>
+      <a href="{% url 'supplier_add' %}" class="btn-vamis mt-2"><i class="fas fa-plus"></i> Add First Supplier</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

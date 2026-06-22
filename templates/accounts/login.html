@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Sign In{% endblock %}
+{% block auth_content %}
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-logo"><i class="fas fa-syringe"></i></div>
+    <h1 class="login-title">VAMIS</h1>
+    <p class="login-subtitle">Vaccine Availability Management Information System</p>
+
+    {% if form.non_field_errors %}
+    <div class="alert-banner danger mb-3">
+      <i class="fas fa-exclamation-circle alert-icon"></i>
+      <div>{{ form.non_field_errors.0 }}</div>
+    </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label"><i class="fas fa-user me-1"></i> Username</label>
+        {{ form.username }}
+        {% if form.username.errors %}
+          <div class="text-danger mt-1" style="font-size:12px;">{{ form.username.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="mb-4">
+        <label class="form-label"><i class="fas fa-lock me-1"></i> Password</label>
+        {{ form.password }}
+        {% if form.password.errors %}
+          <div class="text-danger mt-1" style="font-size:12px;">{{ form.password.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <button type="submit" class="btn-vamis w-100" style="justify-content:center;padding:13px;font-size:15px;">
+        <i class="fas fa-sign-in-alt"></i> Sign In
+      </button>
+    </form>
+
+    <div class="text-center mt-4" style="font-size:12px;color:var(--text-muted);">
+      <i class="fas fa-shield-alt me-1"></i>
+      Authorised personnel only &mdash; all activity is logged
+    </div>
+  </div>
+</div>
+{% endblock %}

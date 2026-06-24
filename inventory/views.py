@@ -10,6 +10,16 @@ from .models import (Vaccine, VaccineBatch, StockTransaction,
 from .forms import (FacilityForm, SupplierForm, VaccineForm, VaccineBatchForm,
                     StockTransactionForm, VaccinationRecordForm, RestockRequestForm)
 from alerts.models import Alert
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle
+)
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from inventory.models import VaccinationRecord
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -433,13 +443,9 @@ def reports(request):
     context = {
         'monthly_vacc': list(monthly_vacc),
         'vaccine_stock': vaccine_stock,
-        'total_vaccinations': VaccinationRecord.objects.count(),
-        'total_patients': __import__('accounts').models.Patient.objects.count(),
-        'low_stock_count': Alert.objects.filter(
-            alert_type='low_stock', is_resolved=False
-        ).count(),
-        'expiry_count': Alert.objects.filter(
-            alert_type='expiry_warning', is_resolved=False
-        ).count(),
-    }
-    return render(request, 'inventory/reports.html', context)
+    })
+
+
+@login_required
+def patient_report_pdf(request):
+    return HttpResponse("Patient PDF report will be implemented here.")

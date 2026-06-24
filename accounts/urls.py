@@ -26,6 +26,11 @@ urlpatterns = [
 
     # Patient portal (patient role)
     path('portal/', views.patient_portal, name='patient_portal'),
+    path(
+        'portal/report/',
+        views.patient_report_pdf,
+        name='patient_report_pdf'
+    ),
 
     # Child registration (health workers)
     path('patients/register-child/', views.child_register, name='child_register'),

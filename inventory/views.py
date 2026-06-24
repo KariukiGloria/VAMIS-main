@@ -20,9 +20,10 @@ from reportlab.platypus import (
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from inventory.models import VaccinationRecord
-
+from django.http import HttpResponse
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
+
 
 def _stock_balance(vaccine, facility):
     return StockTransaction.objects.filter(
@@ -443,9 +444,97 @@ def reports(request):
     context = {
         'monthly_vacc': list(monthly_vacc),
         'vaccine_stock': vaccine_stock,
-    })
+    }
 
 
 @login_required
 def patient_report_pdf(request):
-    return HttpResponse("Patient PDF report will be implemented here.")
+
+    patient = request.user.patient_profile
+
+    vaccinations = (
+        VaccinationRecord.objects
+        .filter(patient=patient)
+        .select_related(
+            'batch__vaccine',
+            'facility'
+        )
+        .order_by('date_administered')
+    )
+
+    response = HttpResponse(
+        content_type='application/pdf'
+    )
+
+    response['Content-Disposition'] = (
+        f'attachment; filename="{patient.full_name}_report.pdf"'
+    )
+
+    doc = SimpleDocTemplate(response)
+
+    styles = getSampleStyleSheet()
+
+    elements = []
+
+    elements.append(
+        Paragraph(
+            "VAMIS Patient Vaccination Report",
+            styles['Title']
+        )
+    )
+
+    elements.append(Spacer(1, 12))
+
+    elements.append(
+        Paragraph(
+            f"<b>Patient:</b> {patient.full_name}",
+            styles['Normal']
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"<b>Date of Birth:</b> {patient.date_of_birth}",
+            styles['Normal']
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"<b>Guardian:</b> {patient.guardian_name}",
+            styles['Normal']
+        )
+    )
+
+    elements.append(Spacer(1, 20))
+
+    data = [
+        [
+            "Vaccine",
+            "Date Given",
+            "Facility"
+        ]
+    ]
+
+    for record in vaccinations:
+        data.append([
+            record.batch.vaccine.name,
+            str(record.date_administered),
+            record.facility.name
+        ])
+
+    table = Table(data)
+
+    table.setStyle(
+        TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ])
+    )
+
+    elements.append(table)
+
+    doc.build(elements)
+
+    return response

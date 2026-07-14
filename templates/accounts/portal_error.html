@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Portal Error{% endblock %}
+{% block content %}
+<div class="row justify-content-center" style="margin-top:80px;">
+  <div class="col-lg-5 text-center">
+    <div style="font-size:60px;color:var(--border);margin-bottom:20px;"><i class="fas fa-unlink"></i></div>
+    <h3 style="font-family:'Poppins',sans-serif;font-weight:700;">Account not linked</h3>
+    <p style="color:var(--text-muted);font-size:14px;margin-top:12px;">
+      Your login account is not connected to a patient profile.
+      Please contact your health facility to have this corrected.
+    </p>
+    <a href="{% url 'logout' %}" class="btn-outline-vamis mt-3" style="display:inline-flex;">
+      <i class="fas fa-sign-out-alt"></i> Log out
+    </a>
+  </div>
+</div>
+{% endblock %}

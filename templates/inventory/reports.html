@@ -1,81 +1,132 @@
 {% extends 'base.html' %}
-{% block title %}Reports{% endblock %}
+{% block title %}Reports & Analytics{% endblock %}
 {% block page_title %}Reports & Analytics{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <h2>Reports &amp; Analytics</h2>
-  <span style="font-size:13px;color:var(--text-muted);"><i class="fas fa-calendar me-1"></i> As of today</span>
+  <div style="font-size:13px;color:var(--text-muted);"><i class="fas fa-calendar me-1"></i> System-wide overview</div>
 </div>
 
+{# ── FILTERS ── #}
+<div class="card mb-3">
+  <div class="card-body" style="padding:12px 16px;">
+    <form method="get" class="d-flex gap-3 flex-wrap align-items-center">
+      <div class="d-flex align-items-center gap-2">
+        <label style="font-size:13px;color:var(--text-muted);white-space:nowrap;">Date range</label>
+        <select name="range" class="form-control" style="width:160px;font-size:13px;" onchange="this.form.submit()">
+          {% for val, label in range_options %}
+          <option value="{{ val }}" {% if date_range == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if request.user.is_admin %}
+      <div class="d-flex align-items-center gap-2">
+        <label style="font-size:13px;color:var(--text-muted);white-space:nowrap;">Facility</label>
+        <select name="facility" class="form-control" style="width:200px;font-size:13px;" onchange="this.form.submit()">
+          <option value="">All facilities</option>
+          {% for f in facilities %}
+          <option value="{{ f.pk }}" {% if facility_filter and facility_filter.pk == f.pk %}selected{% endif %}>{{ f.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{# ── STAT CARDS ── #}
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-icon blue"><i class="fas fa-syringe"></i></div>
-      <div><div class="stat-value">{{ total_vaccinations }}</div><div class="stat-label">Total Vaccinations</div></div>
+      <div><div class="stat-value">{{ total_vaccinations }}</div><div class="stat-label">Vaccinations</div></div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card">
-      <div class="stat-icon pink"><i class="fas fa-users"></i></div>
-      <div><div class="stat-value">{{ total_patients }}</div><div class="stat-label">Total Patients</div></div>
+      <div class="stat-icon pink"><i class="fas fa-baby"></i></div>
+      <div><div class="stat-value">{{ total_patients }}</div><div class="stat-label">Patients</div></div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card">
-      <div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div>
-      <div><div class="stat-value">{{ low_stock_count }}</div><div class="stat-label">Low Stock Alerts</div></div>
+      <div class="stat-icon blue"><i class="fas fa-hospital"></i></div>
+      <div><div class="stat-value">{{ total_facilities }}</div><div class="stat-label">Facilities</div></div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card">
-      <div class="stat-icon orange"><i class="fas fa-clock"></i></div>
-      <div><div class="stat-value">{{ expiry_count }}</div><div class="stat-label">Expiry Warnings</div></div>
+      <div class="stat-icon orange"><i class="fas fa-vial"></i></div>
+      <div><div class="stat-value">{{ total_vaccines }}</div><div class="stat-label">Vaccine Types</div></div>
     </div>
   </div>
 </div>
 
-<div class="row g-3">
-  <div class="col-lg-6">
-    <div class="card">
-      <div class="card-header"><span><i class="fas fa-chart-bar me-2" style="color:var(--blue)"></i>Vaccinations (Last 6 Months)</span></div>
-      <div class="card-body">
-        {% if monthly_vacc %}
-        <div style="display:flex;align-items:flex-end;gap:8px;height:160px;padding-bottom:8px;">
-        {% with max_count=monthly_vacc|last %}
-        {% for m in monthly_vacc %}
-          {% widthratio m.count 1 1 as bar_val %}
-          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-            <span style="font-size:11px;color:var(--text-muted);">{{ m.count }}</span>
-            <div style="width:100%;background:linear-gradient(180deg,var(--blue-mid),var(--blue));border-radius:4px 4px 0 0;
-              height:{% widthratio m.count monthly_vacc.0.count 120 %}px;min-height:4px;transition:height .3s;">
-            </div>
-            <span style="font-size:10px;color:var(--text-muted);">{{ m.month|date:"M" }}</span>
-          </div>
-        {% endfor %}
-        {% endwith %}
-        </div>
-        {% else %}
-        <div class="empty-state" style="padding:20px;"><i class="fas fa-chart-bar"></i><p>No vaccination data yet</p></div>
-        {% endif %}
+{# ── CHARTS ROW 1 ── #}
+<div class="row g-3 mb-3">
+  {# Line chart: vaccinations over time #}
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header">
+        <span><i class="fas fa-chart-line me-2" style="color:var(--blue)"></i>Vaccinations over time</span>
+        <span style="font-size:12px;color:var(--text-muted);">{{ date_range }}-month window</span>
+      </div>
+      <div class="card-body" style="padding:20px;">
+        <canvas id="lineChart" height="110"></canvas>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-6">
-    <div class="card">
-      <div class="card-header"><span><i class="fas fa-vial me-2" style="color:var(--pink-dark)"></i>Current Stock by Vaccine</span></div>
+  {# Pie chart: vaccine type distribution #}
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <span><i class="fas fa-chart-pie me-2" style="color:var(--pink-dark)"></i>Vaccine distribution</span>
+      </div>
+      <div class="card-body" style="padding:20px;display:flex;align-items:center;justify-content:center;">
+        <canvas id="pieVaccineChart" style="max-height:220px;"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── CHARTS ROW 2 ── #}
+<div class="row g-3 mb-3">
+  {# Pie chart: patients per facility #}
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <span><i class="fas fa-chart-pie me-2" style="color:var(--blue)"></i>Patients per facility</span>
+      </div>
+      <div class="card-body" style="padding:20px;display:flex;align-items:center;justify-content:center;">
+        <canvas id="pieFacilityChart" style="max-height:220px;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {# Stock table #}
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header">
+        <span><i class="fas fa-warehouse me-2" style="color:var(--blue)"></i>Remaining stock by vaccine</span>
+      </div>
       <div class="card-body p-0">
         <table class="table-vamis w-100">
-          <thead><tr><th>Vaccine</th><th>Stock</th><th>Min.</th><th>Status</th></tr></thead>
+          <thead>
+            <tr><th>Vaccine</th><th>Remaining</th><th>Min. level</th><th>Status</th></tr>
+          </thead>
           <tbody>
           {% for vs in vaccine_stock %}
           <tr>
-            <td><strong>{{ vs.vaccine.name }}</strong></td>
-            <td>{{ vs.stock }}</td>
+            <td><strong>{{ vs.vaccine.name }}</strong><div style="font-size:11px;color:var(--text-muted);">{{ vs.vaccine.target_disease }}</div></td>
+            <td style="font-weight:700;font-size:15px;{% if vs.stock <= 0 %}color:#dc2626{% elif vs.stock < vs.vaccine.min_stock_level %}color:#d97706{% else %}color:#16a34a{% endif %}">
+              {{ vs.stock }}
+            </td>
             <td style="font-size:13px;color:var(--text-muted);">{{ vs.vaccine.min_stock_level }}</td>
             <td>
               {% if vs.stock <= 0 %}
-                <span class="badge-vamis badge-red">Out of Stock</span>
+                <span class="badge-vamis badge-red">Out of stock</span>
               {% elif vs.stock < vs.vaccine.min_stock_level %}
                 <span class="badge-vamis badge-orange">Low</span>
               {% else %}
@@ -84,7 +135,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="4" class="text-center text-muted" style="padding:20px;">No vaccines in system</td></tr>
+          <tr><td colspan="4" class="text-center" style="padding:24px;color:var(--text-muted);">No vaccines in system</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -92,4 +143,120 @@
     </div>
   </div>
 </div>
+
+{# ── ALERT SUMMARY ── #}
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body d-flex align-items-center gap-4" style="padding:20px;">
+        <div style="width:48px;height:48px;border-radius:12px;background:#fef2f2;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas fa-exclamation-triangle" style="color:#dc2626;font-size:20px;"></i>
+        </div>
+        <div>
+          <div style="font-size:28px;font-weight:800;color:#dc2626;">{{ low_stock_count }}</div>
+          <div style="font-size:13px;color:var(--text-muted);">Active low stock alerts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body d-flex align-items-center gap-4" style="padding:20px;">
+        <div style="width:48px;height:48px;border-radius:12px;background:#fff7ed;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas fa-clock" style="color:#d97706;font-size:20px;"></i>
+        </div>
+        <div>
+          <div style="font-size:28px;font-weight:800;color:#d97706;">{{ expiry_count }}</div>
+          <div style="font-size:13px;color:var(--text-muted);">Active expiry warnings</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const PIE_COLORS = [
+  '#1D6FA4','#D63A7A','#27AE8F','#E8952E','#7B4FBF',
+  '#2196F3','#E91E63','#4CAF50','#FF9800','#9C27B0'
+];
+
+// ── LINE CHART ──
+const lineCtx = document.getElementById('lineChart').getContext('2d');
+new Chart(lineCtx, {
+  type: 'line',
+  data: {
+    labels: {{ line_labels|safe }},
+    datasets: [{
+      label: 'Vaccinations',
+      data: {{ line_data|safe }},
+      borderColor: '#1D6FA4',
+      backgroundColor: 'rgba(29,111,164,0.08)',
+      pointBackgroundColor: '#1D6FA4',
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      tension: 0.4,
+      fill: true,
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} vaccinations` } }
+    },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1, color: '#6B7A90' }, grid: { color: 'rgba(0,0,0,0.04)' } },
+      x: { ticks: { color: '#6B7A90' }, grid: { display: false } }
+    }
+  }
+});
+
+// ── PIE: VACCINE DISTRIBUTION ──
+const pieVaccCtx = document.getElementById('pieVaccineChart').getContext('2d');
+new Chart(pieVaccCtx, {
+  type: 'doughnut',
+  data: {
+    labels: {{ pie_vaccine_labels|safe }},
+    datasets: [{
+      data: {{ pie_vaccine_data|safe }},
+      backgroundColor: PIE_COLORS,
+      borderWidth: 2,
+      borderColor: '#fff',
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} doses` } }
+    },
+    cutout: '60%',
+  }
+});
+
+// ── PIE: PATIENTS PER FACILITY ──
+const pieFacCtx = document.getElementById('pieFacilityChart').getContext('2d');
+new Chart(pieFacCtx, {
+  type: 'doughnut',
+  data: {
+    labels: {{ pie_facility_labels|safe }},
+    datasets: [{
+      data: {{ pie_facility_data|safe }},
+      backgroundColor: PIE_COLORS.slice().reverse(),
+      borderWidth: 2,
+      borderColor: '#fff',
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} patients` } }
+    },
+    cutout: '60%',
+  }
+});
+</script>
 {% endblock %}

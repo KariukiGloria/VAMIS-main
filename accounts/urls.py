@@ -24,14 +24,13 @@ urlpatterns = [
     path('users/<int:pk>/toggle-active/',
          views.user_toggle_active, name='user_toggle_active'),
 
-    # Patient portal (patient role)
-    path('portal/', views.patient_portal, name='patient_portal'),
-    path(
-        'portal/report/',
-        views.patient_report_pdf,
-        name='patient_report_pdf'
-    ),
+    # Patient portal
+    path('portal/',        views.patient_portal,     name='patient_portal'),
+    path('portal/report/', views.patient_report_pdf, name='patient_report_pdf'),
 
-    # Child registration (health workers)
-    path('patients/register-child/', views.child_register, name='child_register'),
+    # Child registration (health workers / admin)
+    path('patients/register-child/',
+         views.child_register,         name='child_register'),
+    path('patients/register-child/success/',
+         views.child_register_success, name='child_register_success'),
 ]

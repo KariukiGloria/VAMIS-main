@@ -1,6 +1,7 @@
+< 'HTMLEOF'
 {% extends 'base.html' %}
 {% block title %}My Portal — {{ patient.full_name }}{% endblock %}
-{% block page_title %}My Vaccine Portal{% endblock %}
+{% block page_title %}Vaccine Portal{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -11,26 +12,29 @@
     <div>
       <h2 style="margin:0;">{{ patient.full_name }}</h2>
       <p class="text-muted mb-0" style="font-size:13px;">
-        Date of birth: {{ patient.date_of_birth|date:"M d, Y" }}
-        &nbsp;·&nbsp;
-        Registered at {{ patient.facility.name|default:"—" }}
+        {{ patient.age_display }} &nbsp;·&nbsp; {{ patient.facility.name|default:"—" }}
       </p>
     </div>
   </div>
+  <a href="{% url 'patient_report_pdf' %}" class="btn-vamis" target="_blank">
+    <i class="fas fa-print"></i> Print report
+  </a>
 </div>
 
 <div class="row g-3">
 
-  {# ── PROFILE CARD ── #}
+  {# ── LEFT COLUMN ── #}
   <div class="col-lg-4">
+
+    {# Profile card #}
     <div class="card mb-3">
       <div class="card-header">
-        <span><i class="fas fa-id-card me-2" style="color:var(--blue)"></i>Profile</span>
+        <span><i class="fas fa-id-card me-2" style="color:var(--blue)"></i>Child profile</span>
       </div>
       <div class="card-body">
         <table style="width:100%;font-size:14px;border-collapse:separate;border-spacing:0 8px;">
           <tr>
-            <td style="color:var(--text-muted);width:110px;">Child name</td>
+            <td style="color:var(--text-muted);width:110px;">Name</td>
             <td><strong>{{ patient.full_name }}</strong></td>
           </tr>
           <tr>
@@ -38,8 +42,16 @@
             <td>{{ patient.date_of_birth|date:"M d, Y" }}</td>
           </tr>
           <tr>
+            <td style="color:var(--text-muted);">Age</td>
+            <td>{{ patient.age_display }}</td>
+          </tr>
+          <tr>
             <td style="color:var(--text-muted);">Guardian</td>
             <td>{{ patient.guardian_name|default:"—" }}</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-muted);">Contact</td>
+            <td>{{ patient.guardian_contact|default:"Not set" }}</td>
           </tr>
           <tr>
             <td style="color:var(--text-muted);">Facility</td>
@@ -47,8 +59,8 @@
           </tr>
         </table>
 
-        <hr style="border-color:var(--border);margin:16px 0 12px;">
-        <p style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
+        <hr style="border-color:var(--border);margin:14px 0 12px;">
+        <p style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
           Update contact number
         </p>
         <form method="post" novalidate>
@@ -67,7 +79,7 @@
       </div>
     </div>
 
-    {# ── NEXT VACCINE CARD ── #}
+    {# Next vaccine card #}
     {% if next_due %}
     <div class="card">
       <div class="card-header">
@@ -89,14 +101,17 @@
           <span class="nv-days">
             {% if next_due.days_until == 0 %}Today
             {% elif next_due.days_until == 1 %}Tomorrow
-            {% else %}{{ next_due.days_until }} days away
+            {% else %}{{ next_due.days_until }} day{{ next_due.days_until|pluralize }} away
             {% endif %}
           </span>
         </div>
-        {% for reminder in reminders|slice:"1:4" %}
+        {% for reminder in reminder_list|slice:"1:4" %}
         <div class="upcoming-reminder">
           <div class="ur-name">{{ reminder.next_vaccine_name|default:reminder.batch.vaccine.name }}</div>
-          <div class="ur-date">{{ reminder.next_vaccine_date|date:"M d, Y" }}</div>
+          <div class="ur-date">
+            {{ reminder.next_vaccine_date|date:"M d, Y" }}
+            &nbsp;·&nbsp; {{ reminder.days_until }} day{{ reminder.days_until|pluralize }} away
+          </div>
         </div>
         {% endfor %}
       </div>
@@ -105,19 +120,20 @@
     <div class="card">
       <div class="card-body">
         <div class="empty-state" style="padding:24px 0;">
-          <i class="fas fa-check-circle" style="color:#22c55e;"></i>
-          <p style="margin-top:8px;font-size:14px;">No upcoming vaccines scheduled</p>
+          <i class="fas fa-check-circle" style="color:#22c55e;font-size:36px;"></i>
+          <p style="margin-top:10px;font-size:14px;">No upcoming vaccines scheduled</p>
         </div>
       </div>
     </div>
     {% endif %}
+
   </div>
 
-  {# ── VACCINATION RECORDS ── #}
+  {# ── RIGHT COLUMN — VACCINE RECORDS ── #}
   <div class="col-lg-8">
     <div class="card">
       <div class="card-header">
-        <span><i class="fas fa-syringe me-2" style="color:var(--pink-dark)"></i>Vaccine records ({{ vaccinations.count }})</span>
+        <span><i class="fas fa-syringe me-2" style="color:var(--pink-dark)"></i>Vaccination history ({{ vaccinations.count }})</span>
       </div>
       <div class="card-body p-0">
         {% if vaccinations %}
@@ -126,9 +142,10 @@
             <thead>
               <tr>
                 <th>Vaccine</th>
-                <th>Type</th>
+                <th>Targets</th>
                 <th>Date given</th>
                 <th>Facility</th>
+                <th>Next due</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -137,23 +154,23 @@
               <tr>
                 <td>
                   <strong>{{ v.batch.vaccine.name }}</strong>
-                  <div style="font-size:11px;color:var(--text-muted);">
-                    Dose {{ v.dose_sequence }} of {{ v.batch.vaccine.required_doses }}
-                  </div>
+                  <div style="font-size:11px;color:var(--text-muted);">Dose {{ v.dose_sequence }} of {{ v.batch.vaccine.required_doses }}</div>
                 </td>
-                <td style="font-size:13px;color:var(--text-muted);">
-                  {{ v.batch.vaccine.target_disease }}
-                </td>
-                <td style="font-size:13px;color:var(--text-muted);">
-                  {{ v.date_administered|date:"M d, Y" }}
-                </td>
+                <td style="font-size:13px;color:var(--text-muted);">{{ v.batch.vaccine.target_disease }}</td>
+                <td style="font-size:13px;color:var(--text-muted);">{{ v.date_administered|date:"M d, Y" }}</td>
                 <td style="font-size:13px;">{{ v.facility.name }}</td>
+                <td style="font-size:13px;">
+                  {% if v.next_vaccine_date %}
+                    {{ v.next_vaccine_date|date:"M d, Y" }}
+                    {% if v.next_vaccine_name %}<div style="font-size:11px;color:var(--text-muted);">{{ v.next_vaccine_name }}</div>{% endif %}
+                  {% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
+                </td>
                 <td>
                   {% if v.next_vaccine_date %}
                     {% if v.next_vaccine_date < today %}
                       <span class="badge-vamis badge-green">Complete</span>
                     {% else %}
-                      <span class="badge-vamis badge-orange">Next due</span>
+                      <span class="badge-vamis badge-orange">Follow-up due</span>
                     {% endif %}
                   {% else %}
                     <span class="badge-vamis badge-green">Given</span>
@@ -167,7 +184,8 @@
         {% else %}
         <div class="empty-state">
           <i class="fas fa-syringe"></i>
-          <p>No vaccinations recorded yet</p>
+          <p>No vaccinations recorded yet.<br>
+          <span style="font-size:13px;color:var(--text-muted);">Visit your health facility to have vaccinations recorded.</span></p>
         </div>
         {% endif %}
       </div>

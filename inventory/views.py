@@ -10,20 +10,9 @@ from .models import (Vaccine, VaccineBatch, StockTransaction,
 from .forms import (FacilityForm, SupplierForm, VaccineForm, VaccineBatchForm,
                     StockTransactionForm, VaccinationRecordForm, RestockRequestForm)
 from alerts.models import Alert
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Table,
-    TableStyle
-)
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
-from inventory.models import VaccinationRecord
-from django.http import HttpResponse
+
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
-
 
 def _stock_balance(vaccine, facility):
     return StockTransaction.objects.filter(
@@ -256,15 +245,38 @@ def stock_list(request):
     txns = StockTransaction.objects.select_related(
         'batch__vaccine', 'facility', 'performed_by'
     ).order_by('-transaction_date', '-created_at')
-    if not request.user.is_admin and request.user.facility:
-        txns = txns.filter(facility=request.user.facility)
+
+    facility_filter = request.user.facility if not request.user.is_admin else None
+    if facility_filter:
+        txns = txns.filter(facility=facility_filter)
+
     type_filter = request.GET.get('type', '')
     if type_filter:
         txns = txns.filter(transaction_type=type_filter)
+
+    # Remaining stock per vaccine (scoped to facility if health worker)
+    stock_summary = []
+    for v in Vaccine.objects.order_by('name'):
+        bal = _stock_balance(v, facility_filter) if facility_filter else \
+            StockTransaction.objects.filter(batch__vaccine=v).aggregate(
+                bal=Sum(Case(
+                    When(transaction_type='delivery', then='quantity_moved'),
+                    When(transaction_type__in=['usage', 'expiry', 'disposal'],
+                         then=F('quantity_moved') * -1),
+                    default=0, output_field=IntegerField()
+                ))
+            )['bal'] or 0
+        stock_summary.append({
+            'vaccine': v,
+            'remaining': bal,
+            'status': 'out' if bal <= 0 else 'low' if bal < v.min_stock_level else 'ok',
+        })
+
     return render(request, 'inventory/stock.html', {
         'transactions': txns,
         'type_filter': type_filter,
         'transaction_types': StockTransaction.TRANSACTION_TYPES,
+        'stock_summary': stock_summary,
     })
 
 
@@ -414,24 +426,78 @@ def restock_update_status(request, pk):
 
 @login_required
 def reports(request):
-    if not request.user.is_admin:
+    if not (request.user.is_admin or request.user.is_health_worker):
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
+
+    import json
     from django.db.models.functions import TruncMonth
-    # Vaccinations per month (last 6 months)
-    six_months_ago = timezone.now().date() - datetime.timedelta(days=180)
-    monthly_vacc = (
-        VaccinationRecord.objects
-        .filter(date_administered__gte=six_months_ago)
+    from accounts.models import Patient
+
+    # ── Date range filter ──
+    date_range = request.GET.get('range', '6')
+    try:
+        months_back = int(date_range)
+    except ValueError:
+        months_back = 6
+    since = timezone.now().date() - datetime.timedelta(days=months_back * 30)
+
+    # ── Facility filter (admin only) ──
+    facility_id = request.GET.get('facility', '')
+    facilities = Facility.objects.order_by('name')
+    facility_filter = None
+    if facility_id and request.user.is_admin:
+        try:
+            facility_filter = Facility.objects.get(pk=facility_id)
+        except Facility.DoesNotExist:
+            pass
+    elif not request.user.is_admin and request.user.facility:
+        facility_filter = request.user.facility
+
+    # ── Base querysets ──
+    vacc_qs = VaccinationRecord.objects.filter(date_administered__gte=since)
+    if facility_filter:
+        vacc_qs = vacc_qs.filter(facility=facility_filter)
+
+    # ── Line chart: vaccinations per month ──
+    monthly_qs = (
+        vacc_qs
         .annotate(month=TruncMonth('date_administered'))
         .values('month')
         .annotate(count=Count('id'))
         .order_by('month')
     )
-    # Stock per vaccine
+    line_labels = [e['month'].strftime('%b %Y') for e in monthly_qs]
+    line_data   = [e['count'] for e in monthly_qs]
+
+    # ── Pie chart 1: vaccine type distribution ──
+    vaccine_dist_qs = (
+        vacc_qs
+        .values('batch__vaccine__name')
+        .annotate(count=Count('id'))
+        .order_by('-count')[:8]
+    )
+    pie_vaccine_labels = [e['batch__vaccine__name'] for e in vaccine_dist_qs]
+    pie_vaccine_data   = [e['count'] for e in vaccine_dist_qs]
+
+    # ── Pie chart 2: patients per facility ──
+    patient_facility_qs = (
+        Patient.objects
+        .values('facility__name')
+        .annotate(count=Count('id'))
+        .order_by('-count')[:8]
+    )
+    pie_facility_labels = [e['facility__name'] or 'Unknown' for e in patient_facility_qs]
+    pie_facility_data   = [e['count'] for e in patient_facility_qs]
+
+    # ── Stock overview per vaccine ──
     vaccine_stock = []
-    for v in Vaccine.objects.all():
-        total = StockTransaction.objects.filter(batch__vaccine=v).aggregate(
+    stock_qs = Vaccine.objects.all()
+    for v in stock_qs:
+        txn_filter = {'batch__vaccine': v}
+        if facility_filter:
+            txn_filter['facility'] = facility_filter
+        total = StockTransaction.objects.filter(**txn_filter).aggregate(
             bal=Sum(Case(
                 When(transaction_type='delivery', then='quantity_moved'),
                 When(transaction_type__in=['usage', 'expiry', 'disposal'],
@@ -441,100 +507,35 @@ def reports(request):
         )['bal'] or 0
         vaccine_stock.append({'vaccine': v, 'stock': total})
 
+    # ── Summary stats ──
+    total_vacc_qs = VaccinationRecord.objects.all()
+    total_pat_qs  = Patient.objects.all()
+    if facility_filter:
+        total_vacc_qs = total_vacc_qs.filter(facility=facility_filter)
+        total_pat_qs  = total_pat_qs.filter(facility=facility_filter)
+
     context = {
-        'monthly_vacc': list(monthly_vacc),
-        'vaccine_stock': vaccine_stock,
+        # Charts
+        'line_labels':          json.dumps(line_labels),
+        'line_data':            json.dumps(line_data),
+        'pie_vaccine_labels':   json.dumps(pie_vaccine_labels),
+        'pie_vaccine_data':     json.dumps(pie_vaccine_data),
+        'pie_facility_labels':  json.dumps(pie_facility_labels),
+        'pie_facility_data':    json.dumps(pie_facility_data),
+        # Stock table
+        'vaccine_stock':        vaccine_stock,
+        # Stats
+        'total_vaccinations':   total_vacc_qs.count(),
+        'total_patients':       total_pat_qs.count(),
+        'total_facilities':     Facility.objects.count(),
+        'total_vaccines':       Vaccine.objects.count(),
+        'low_stock_count':      Alert.objects.filter(alert_type='low_stock', is_resolved=False).count(),
+        'expiry_count':         Alert.objects.filter(alert_type='expiry_warning', is_resolved=False).count(),
+        # Filters
+        'facilities':           facilities,
+        'facility_filter':      facility_filter,
+        'date_range':           str(months_back),
+        'range_options':        [('3', 'Last 3 months'), ('6', 'Last 6 months'),
+                                 ('12', 'Last 12 months'), ('24', 'Last 2 years')],
     }
-
-
-@login_required
-def patient_report_pdf(request):
-
-    patient = request.user.patient_profile
-
-    vaccinations = (
-        VaccinationRecord.objects
-        .filter(patient=patient)
-        .select_related(
-            'batch__vaccine',
-            'facility'
-        )
-        .order_by('date_administered')
-    )
-
-    response = HttpResponse(
-        content_type='application/pdf'
-    )
-
-    response['Content-Disposition'] = (
-        f'attachment; filename="{patient.full_name}_report.pdf"'
-    )
-
-    doc = SimpleDocTemplate(response)
-
-    styles = getSampleStyleSheet()
-
-    elements = []
-
-    elements.append(
-        Paragraph(
-            "VAMIS Patient Vaccination Report",
-            styles['Title']
-        )
-    )
-
-    elements.append(Spacer(1, 12))
-
-    elements.append(
-        Paragraph(
-            f"<b>Patient:</b> {patient.full_name}",
-            styles['Normal']
-        )
-    )
-
-    elements.append(
-        Paragraph(
-            f"<b>Date of Birth:</b> {patient.date_of_birth}",
-            styles['Normal']
-        )
-    )
-
-    elements.append(
-        Paragraph(
-            f"<b>Guardian:</b> {patient.guardian_name}",
-            styles['Normal']
-        )
-    )
-
-    elements.append(Spacer(1, 20))
-
-    data = [
-        [
-            "Vaccine",
-            "Date Given",
-            "Facility"
-        ]
-    ]
-
-    for record in vaccinations:
-        data.append([
-            record.batch.vaccine.name,
-            str(record.date_administered),
-            record.facility.name
-        ])
-
-    table = Table(data)
-
-    table.setStyle(
-        TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ])
-    )
-
-    elements.append(table)
-
-    doc.build(elements)
-
-    return response
+    return render(request, 'inventory/reports.html', context)

@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Registration Successful{% endblock %}
+{% block page_title %}Child Registered{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6 col-xl-5">
+    <div class="card" style="border:1.5px solid #22c55e;">
+      <div class="card-header" style="background:#f0fdf4;border-color:#bbf7d0;">
+        <span style="color:#15803d;font-size:15px;">
+          <i class="fas fa-check-circle me-2"></i>{{ credentials.patient_name }} registered
+        </span>
+      </div>
+      <div class="card-body">
+
+        <div class="alert-banner danger mb-4">
+          <i class="fas fa-exclamation-triangle alert-icon"></i>
+          <div style="font-size:13px;">
+            <strong>Hand these credentials to the guardian now.</strong>
+            They will not be shown again after you leave this page.
+          </div>
+        </div>
+
+        <table style="width:100%;font-size:14px;border-collapse:separate;border-spacing:0 12px;">
+          <tr>
+            <td style="color:var(--text-muted);width:130px;font-weight:600;">Child</td>
+            <td><strong>{{ credentials.patient_name }}</strong></td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-muted);font-weight:600;">Guardian</td>
+            <td>{{ credentials.guardian_name }}</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-muted);font-weight:600;">Username</td>
+            <td>
+              <code style="background:var(--off-white);padding:6px 14px;border-radius:6px;font-size:17px;letter-spacing:.05em;border:1px solid var(--border);display:inline-block;">
+                {{ credentials.username }}
+              </code>
+            </td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-muted);font-weight:600;">Password</td>
+            <td>
+              <code style="background:var(--off-white);padding:6px 14px;border-radius:6px;font-size:17px;letter-spacing:.08em;border:1px solid var(--border);display:inline-block;">
+                {{ credentials.password }}
+              </code>
+            </td>
+          </tr>
+        </table>
+
+        <hr style="border-color:var(--border);margin:20px 0 14px;">
+        <p style="font-size:12px;color:var(--text-muted);">
+          <i class="fas fa-info-circle me-1"></i>
+          The guardian logs in at <strong>/login/</strong> using the credentials above.
+          They will be taken directly to the child's vaccine portal and can update their contact number there.
+        </p>
+
+        <div class="d-flex gap-2 mt-3">
+          <a href="{% url 'child_register' %}" class="btn-pink">
+            <i class="fas fa-baby"></i> Register another child
+          </a>
+          <a href="{% url 'patient_list' %}" class="btn-outline-vamis">
+            <i class="fas fa-users"></i> View all patients
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -410,6 +410,70 @@ window.tabSwitcher = function (defaultTab = '') {
   };
 };
 
+
+/* ================================================================
+   SESSION INACTIVITY TIMER
+   Warns user 2 minutes before auto-logout, then redirects to /login/
+   Timeout matches settings.SESSION_INACTIVITY_TIMEOUT (15 min)
+================================================================ */
+(function () {
+  const TIMEOUT_MS    = 15 * 60 * 1000;  // 15 minutes — must match settings
+  const WARNING_MS    = 13 * 60 * 1000;  // warn 2 minutes before
+  const EVENTS        = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
+
+  let warningTimer, logoutTimer, warningShown = false;
+
+  function resetTimers() {
+    clearTimeout(warningTimer);
+    clearTimeout(logoutTimer);
+    if (warningShown) {
+      const w = document.getElementById('session-warning');
+      if (w) w.remove();
+      warningShown = false;
+    }
+    warningTimer = setTimeout(showWarning, WARNING_MS);
+    logoutTimer  = setTimeout(doLogout,    TIMEOUT_MS);
+  }
+
+  function showWarning() {
+    warningShown = true;
+    const div = document.createElement('div');
+    div.id = 'session-warning';
+    div.style.cssText = [
+      'position:fixed','bottom:24px','right:24px','z-index:9999',
+      'background:#1e3a5f','color:#fff','padding:16px 20px',
+      'border-radius:12px','max-width:320px','box-shadow:0 8px 24px rgba(0,0,0,.3)',
+      'font-family:Nunito,sans-serif','font-size:14px','line-height:1.5',
+    ].join(';');
+    div.innerHTML = `
+      <div style="font-weight:700;margin-bottom:6px;">
+        <i class="fas fa-clock" style="color:#fde68a;margin-right:6px;"></i>Session expiring soon
+      </div>
+      <div style="color:rgba(255,255,255,.8);font-size:13px;">
+        You will be logged out in 2 minutes due to inactivity.
+      </div>
+      <button onclick="document.getElementById('session-warning').remove()" style="
+        margin-top:12px;background:rgba(255,255,255,.15);color:#fff;
+        border:1px solid rgba(255,255,255,.3);padding:6px 16px;
+        border-radius:6px;cursor:pointer;font-family:Nunito,sans-serif;font-size:13px;">
+        Keep me logged in
+      </button>`;
+    document.body.appendChild(div);
+    // "Keep me logged in" button resets timers
+    div.querySelector('button').addEventListener('click', resetTimers);
+  }
+
+  function doLogout() {
+    window.location.href = '/logout/';
+  }
+
+  // Only run for authenticated pages (check for logout link in sidebar)
+  if (document.querySelector('.logout-btn') || document.querySelector('[href*="logout"]')) {
+    EVENTS.forEach(e => document.addEventListener(e, resetTimers, { passive: true }));
+    resetTimers();
+  }
+})();
+
 /* ================================================================
    EXPOSE GLOBALLY
 ================================================================ */

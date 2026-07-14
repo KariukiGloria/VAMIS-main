@@ -5,21 +5,28 @@ from datetime import date
 
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, UserChangeForm
-from django.core.validators import RegexValidator
 from .models import User, Patient, UserPermission
 
 
-# ── Shared validators ──────────────────────────────────────────────────────────
+# ── Validators ────────────────────────────────────────────────────────────────
 
-kenyan_phone_validator = RegexValidator(
-    regex=r'^254\d{9}$',
-    message='Enter a valid Kenyan number: 254 followed by 9 digits (e.g. 254712345678).'
-)
+def validate_kenyan_phone(value):
+    """Accepts 254XXXXXXXXX (12 digits total). Strips spaces/dashes first."""
+    cleaned = re.sub(r'[\s\-]', '', value.strip())
+    if not re.fullmatch(r'^254\d{9}$', cleaned):
+        raise forms.ValidationError(
+            'Enter a valid Kenyan number: 254 followed by exactly 9 digits '
+            '(e.g. 254712345678). No spaces or dashes.'
+        )
+    return cleaned
 
-name_validator = RegexValidator(
-    regex=r'^[A-Za-z\s\'\-]+$',
-    message='Name may only contain letters, spaces, hyphens and apostrophes.'
-)
+
+def validate_name(value):
+    if not re.fullmatch(r"^[A-Za-z\s'\-]+$", value.strip()):
+        raise forms.ValidationError(
+            'Name may only contain letters, spaces, hyphens and apostrophes.'
+        )
+    return value.strip()
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
@@ -54,6 +61,18 @@ class UserCreateForm(UserCreationForm):
         self.fields['last_name'].required = True
         self.fields['email'].required = True
 
+    def clean_phone(self):
+        val = self.cleaned_data.get('phone', '').strip()
+        if val:
+            return validate_kenyan_phone(val)
+        return val
+
+    def clean_first_name(self):
+        return validate_name(self.cleaned_data.get('first_name', ''))
+
+    def clean_last_name(self):
+        return validate_name(self.cleaned_data.get('last_name', ''))
+
 
 class UserEditForm(UserChangeForm):
     password = None
@@ -68,10 +87,17 @@ class UserEditForm(UserChangeForm):
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
 
+    def clean_phone(self):
+        val = self.cleaned_data.get('phone', '').strip()
+        if val:
+            return validate_kenyan_phone(val)
+        return val
 
-# ── Patient (general / admin edit) ────────────────────────────────────────────
+
+# ── Patient edit (admin / health worker) ──────────────────────────────────────
 
 class PatientForm(forms.ModelForm):
+    """Used to edit an existing patient record. Not for new registration."""
     date_of_birth = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
@@ -93,6 +119,26 @@ class PatientForm(forms.ModelForm):
         self.fields['guardian_contact'].required = True
         self.fields['guardian_contact'].widget.attrs['placeholder'] = '254712345678'
 
+    def clean_first_name(self):
+        return validate_name(self.cleaned_data.get('first_name', ''))
+
+    def clean_last_name(self):
+        return validate_name(self.cleaned_data.get('last_name', ''))
+
+    def clean_guardian_name(self):
+        return validate_name(self.cleaned_data.get('guardian_name', ''))
+
+    def clean_guardian_contact(self):
+        value = self.cleaned_data.get('guardian_contact', '')
+        value = validate_kenyan_phone(value)
+        qs = Patient.objects.filter(guardian_contact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError(
+                'This contact number is already linked to another child record.')
+        return value
+
     def clean_national_id(self):
         nid = self.cleaned_data.get('national_id') or None
         if nid:
@@ -104,27 +150,28 @@ class PatientForm(forms.ModelForm):
                     'A patient with this National ID already exists.')
         return nid
 
-    def clean_guardian_contact(self):
-        value = self.cleaned_data.get('guardian_contact', '').strip()
-        value = re.sub(r'[\s\-]', '', value)
-        if not re.fullmatch(r'^254\d{9}$', value):
-            raise forms.ValidationError(
-                'Enter a valid Kenyan number: 254 followed by exactly 9 digits '
-                '(e.g. 254712345678).'
-            )
-        qs = Patient.objects.filter(guardian_contact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise forms.ValidationError(
-                'This contact number is already linked to another child record.')
-        return value
+    def clean_date_of_birth(self):
+        dob = self.cleaned_data.get('date_of_birth')
+        if dob:
+            if dob > date.today():
+                raise forms.ValidationError(
+                    'Date of birth cannot be in the future.')
+            age_months = (date.today().year - dob.year) * 12 + (
+                date.today().month - dob.month)
+            if age_months > 60:
+                raise forms.ValidationError(
+                    'This system only manages children under 5 years old.')
+        return dob
 
 
 # ── Child registration (health worker) ────────────────────────────────────────
 
 class ChildRegistrationForm(forms.ModelForm):
-
+    """
+    Health worker registers a child as a new patient.
+    Age must be under 5 years (60 months).
+    Atomically creates a linked User account — credentials shown once.
+    """
     date_of_birth = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
@@ -142,33 +189,76 @@ class ChildRegistrationForm(forms.ModelForm):
         for name, field in self.fields.items():
             if name != 'date_of_birth':
                 field.widget.attrs['class'] = 'form-control'
-
-        # Placeholders
         self.fields['first_name'].widget.attrs['placeholder'] = "Child's first name"
         self.fields['last_name'].widget.attrs['placeholder'] = "Child's last name"
-        self.fields['guardian_name'].widget.attrs['placeholder'] = 'Full name of parent/guardian'
+        self.fields['guardian_name'].widget.attrs['placeholder'] = 'Full name of parent / guardian'
         self.fields['guardian_contact'].widget.attrs['placeholder'] = '254712345678'
-
-        # Required fields
         self.fields['guardian_name'].required = True
         self.fields['guardian_contact'].required = True
         self.fields['gender'].required = True
-
         # Pre-fill facility from health worker's assigned facility
         if self.health_worker and self.health_worker.facility:
             self.fields['facility'].initial = self.health_worker.facility
-            self.fields['facility'].widget.attrs['class'] = 'form-control'
 
-    def save(self, commit=True):
-        patient = super().save(commit=False)
-        patient.gender = 'O'
-        if commit:
-            patient.save()
-        return patient
+    # ── Field-level validations ──
 
+    def clean_first_name(self):
+        return validate_name(self.cleaned_data.get('first_name', ''))
+
+    def clean_last_name(self):
+        return validate_name(self.cleaned_data.get('last_name', ''))
+
+    def clean_guardian_name(self):
+        return validate_name(self.cleaned_data.get('guardian_name', ''))
+
+    def clean_guardian_contact(self):
+        value = self.cleaned_data.get('guardian_contact', '')
+        value = validate_kenyan_phone(value)
+        # Uniqueness check — one contact per child record
+        if Patient.objects.filter(guardian_contact=value).exists():
+            raise forms.ValidationError(
+                'This contact number is already linked to another child record.')
+        return value
+
+    def clean_date_of_birth(self):
+        dob = self.cleaned_data.get('date_of_birth')
+        if dob:
+            today = date.today()
+            if dob > today:
+                raise forms.ValidationError(
+                    'Date of birth cannot be in the future.')
+            age_months = (today.year - dob.year) * \
+                12 + (today.month - dob.month)
+            if age_months > 60:
+                raise forms.ValidationError(
+                    'This system only manages children under 5 years old.')
+        return dob
+
+    # ── Credential generation ──
+
+    @staticmethod
+    def generate_credentials(guardian_name):
+        """
+        Derives a username from the guardian's name and generates a
+        cryptographically secure 10-character password.
+        """
+        base = re.sub(r'[^a-z0-9]', '',
+                      guardian_name.lower().replace(' ', ''))[:12]
+        base = base or 'patient'
+        username = base
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f'{base}{counter}'
+            counter += 1
+        alphabet = string.ascii_letters + string.digits
+        raw_password = ''.join(secrets.choice(alphabet) for _ in range(10))
+        return username, raw_password
+
+
+# ── Guardian contact update (patient portal) ──────────────────────────────────
 
 class GuardianContactForm(forms.ModelForm):
-    """Allows the guardian/patient-user to update their contact number from the portal."""
+    """Lets the guardian update their contact number from within the portal."""
 
     class Meta:
         model = Patient
@@ -183,26 +273,21 @@ class GuardianContactForm(forms.ModelForm):
         self.fields['guardian_contact'].required = True
 
     def clean_guardian_contact(self):
-        value = self.cleaned_data.get('guardian_contact', '').strip()
-        value = re.sub(r'[\s\-]', '', value)
-        if not re.fullmatch(r'^254\d{9}$', value):
-            raise forms.ValidationError(
-                'Enter a valid Kenyan number: 254 followed by exactly 9 digits '
-                '(e.g. 254712345678). No spaces or dashes.'
-            )
-        # Exclude current patient when checking uniqueness
+        value = self.cleaned_data.get('guardian_contact', '')
+        value = validate_kenyan_phone(value)
         qs = Patient.objects.filter(guardian_contact=value)
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise forms.ValidationError(
-                'This contact number is already linked to another child record.'
-            )
+                'This contact number is already linked to another child record.')
         return value
 
 
+# ── Patient password change (forced on first login) ───────────────────────────
+
 class PatientPasswordChangeForm(forms.Form):
-    """Used by patients/guardians to change their auto-generated password."""
+    """Patient / guardian changes their auto-generated password on first login."""
     new_password1 = forms.CharField(
         label='New password',
         widget=forms.PasswordInput(attrs={
@@ -233,22 +318,38 @@ class PatientPasswordChangeForm(forms.Form):
         return password
 
     def clean(self):
-        cleaned_data = super().clean()
-        p1 = cleaned_data.get('new_password1')
-        p2 = cleaned_data.get('new_password2')
+        cleaned = super().clean()
+        p1 = cleaned.get('new_password1')
+        p2 = cleaned.get('new_password2')
         if p1 and p2 and p1 != p2:
             raise forms.ValidationError('Passwords do not match.')
-        return cleaned_data
+        return cleaned
 
+
+# ── User permissions (admin configures per user) ──────────────────────────────
 
 class UserPermissionForm(forms.ModelForm):
+    """Admin configures granular permissions per health worker / distributor."""
     class Meta:
         model = UserPermission
         exclude = ['user']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        labels = {
+            'can_view_patients':     'View patients',
+            'can_register_patients': 'Register patients',
+            'can_record_vaccination': 'Record vaccinations',
+            'can_view_stock':        'View stock',
+            'can_manage_stock':      'Manage stock',
+            'can_view_batches':      'View batches',
+            'can_manage_batches':    'Manage batches',
+            'can_restock':           'Request restock',
+            'can_view_alerts':       'View alerts',
+            'can_resolve_alerts':    'Resolve alerts',
+            'can_view_reports':      'View reports',
+        }
         for name, field in self.fields.items():
             field.widget.attrs['class'] = 'form-check-input'
-            # Make label human-readable
-            field.label = name.replace('can_', '').replace('_', ' ').title()
+            field.label = labels.get(name, name.replace(
+                'can_', '').replace('_', ' ').title())

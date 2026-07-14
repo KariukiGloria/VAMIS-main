@@ -24,14 +24,17 @@ class User(AbstractUser):
         null=True, blank=True,
         related_name='staff'
     )
-    phone = models.CharField(max_length=20, blank=True,
-                             validators=[kenyan_phone_validator])
+    phone = models.CharField(
+        max_length=20, blank=True,
+        validators=[kenyan_phone_validator]
+    )
     is_approved = models.BooleanField(default=True)
-    must_change_password = models.BooleanField(default=False, help_text='Force password change on next login (set for auto-generated accounts).'
-                                               )
+    must_change_password = models.BooleanField(
+        default=False,
+        help_text='Force password change on next login (set for auto-generated accounts).'
+    )
 
- # Required when using a custom user model alongside AbstractUser
- # Prevents reverse accessor clash with the built-in auth.User
+    # Prevents reverse accessor clash with the built-in auth.User
     groups = models.ManyToManyField(
         'auth.Group',
         blank=True,
@@ -73,8 +76,10 @@ class Patient(models.Model):
     last_name = models.CharField(max_length=100)
     date_of_birth = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
-    phone = models.CharField(max_length=20, blank=True,
-                             validators=[kenyan_phone_validator])
+    phone = models.CharField(
+        max_length=20, blank=True,
+        validators=[kenyan_phone_validator]
+    )
     national_id = models.CharField(
         max_length=20, blank=True, unique=True, null=True)
     guardian_name = models.CharField(max_length=100, blank=True)
@@ -139,7 +144,6 @@ class Patient(models.Model):
 class UserPermission(models.Model):
     """
     Granular feature permissions assigned per user by admin.
-    Defaults reflect what each role could reasonably do.
     Admin always has everything — this model is for health_worker and distributor only.
     """
     user = models.OneToOneField(

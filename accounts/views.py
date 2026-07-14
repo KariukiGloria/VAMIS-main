@@ -3,11 +3,23 @@ from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, Count
+from django.db import transaction
 from .forms import LoginForm, UserCreateForm, UserEditForm, PatientForm, ChildRegistrationForm, GuardianContactForm
 from .models import User, Patient
 from inventory.models import (VaccinationRecord, StockTransaction,
                               Facility, Vaccine, VaccineBatch, RestockRequest)
 from alerts.models import Alert
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle
+)
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from django.http import HttpResponse
 
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
@@ -260,39 +272,49 @@ def user_toggle_active(request, pk):
 def patient_portal(request):
     if not request.user.is_patient:
         return redirect('dashboard')
+
+    # Safety net — atomic registration prevents this, but handles edge cases
     try:
         patient = request.user.patient_profile
     except Patient.DoesNotExist:
-        messages.error(request, 'No patient profile linked to your account.')
-        return redirect('dashboard')
+        return render(request, 'accounts/portal_error.html', status=400)
+
+    from datetime import date
+    today = date.today()
 
     vaccinations = VaccinationRecord.objects.filter(
         patient=patient
     ).select_related('batch__vaccine', 'facility', 'administered_by').order_by('-date_administered')
 
-    # Build reminders: upcoming next_vaccine_date entries
-    from datetime import date
-    import datetime
-    today = date.today()
-    reminders = VaccinationRecord.objects.filter(
+    # Upcoming reminders with days_until annotated
+    reminders_qs = VaccinationRecord.objects.filter(
         patient=patient,
         next_vaccine_date__gte=today
     ).select_related('batch__vaccine', 'facility').order_by('next_vaccine_date')
 
-    next_due = reminders.first()
+    reminder_list = []
+    for r in reminders_qs:
+        r.days_until = (r.next_vaccine_date - today).days
+        reminder_list.append(r)
+
+    next_due = reminder_list[0] if reminder_list else None
 
     contact_form = GuardianContactForm(instance=patient)
     if request.method == 'POST' and 'update_contact' in request.POST:
         contact_form = GuardianContactForm(request.POST, instance=patient)
         if contact_form.is_valid():
             contact_form.save()
+            # Sync to the linked User account's phone field (admin sees this)
+            if patient.user_account:
+                patient.user_account.phone = patient.guardian_contact
+                patient.user_account.save(update_fields=['phone'])
             messages.success(request, 'Contact number updated successfully.')
             return redirect('patient_portal')
 
     return render(request, 'accounts/patient_portal.html', {
         'patient': patient,
         'vaccinations': vaccinations,
-        'reminders': reminders,
+        'reminder_list': reminder_list,
         'next_due': next_due,
         'contact_form': contact_form,
         'today': today,
@@ -303,17 +325,85 @@ def patient_portal(request):
 
 @login_required
 def child_register(request):
-    if not request.user.is_health_worker and not request.user.is_admin:
+    if not (request.user.is_health_worker or request.user.is_admin):
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
+
     form = ChildRegistrationForm(
         request.POST or None, health_worker=request.user)
+
     if request.method == 'POST' and form.is_valid():
-        patient = form.save()
-        messages.success(
-            request, f'{patient.full_name} registered successfully.')
-        return redirect('patient_detail', pk=patient.pk)
+        try:
+            with transaction.atomic():
+                patient = form.save(commit=False)
+                patient.gender = 'O'
+
+                # Generate unique username + secure password
+                username, raw_password = ChildRegistrationForm.generate_credentials(
+                    patient.guardian_name)
+
+                # Create the patient User — inside the same transaction
+                patient_user = User.objects.create_user(
+                    username=username,
+                    password=raw_password,
+                    first_name=patient.guardian_name,
+                    phone=patient.guardian_contact,
+                    role='patient',
+                )
+                patient.user_account = patient_user
+                patient.save()
+                # Both patient and user_account saved — or both rolled back
+
+            # Store credentials in session, shown ONCE then cleared
+            request.session['new_patient_credentials'] = {
+                'patient_name': patient.full_name,
+                'guardian_name': patient.guardian_name,
+                'username': username,
+                'password': raw_password,
+            }
+            return redirect('child_register_success')
+
+        except Exception as e:
+            messages.error(
+                request, f'Registration failed. Please try again. ({e})')
+
     return render(request, 'accounts/child_register.html', {
         'form': form,
-        'title': 'Register child',
+        'title': 'Register Child',
+    })
+
+
+@login_required
+def child_register_success(request):
+    if not (request.user.is_health_worker or request.user.is_admin):
+        return redirect('dashboard')
+    credentials = request.session.pop('new_patient_credentials', None)
+    if not credentials:
+        messages.warning(request, 'No recent registration found.')
+        return redirect('patient_list')
+    return render(request, 'accounts/child_register_success.html', {
+        'credentials': credentials,
+    })
+
+
+@login_required
+def patient_report_pdf(request):
+    """Printable vaccination history for the logged-in patient (browser print → PDF)."""
+    if not request.user.is_patient:
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+    try:
+        patient = request.user.patient_profile
+    except Patient.DoesNotExist:
+        return render(request, 'accounts/portal_error.html', status=400)
+
+    from datetime import date
+    vaccinations = VaccinationRecord.objects.filter(
+        patient=patient
+    ).select_related('batch__vaccine', 'facility', 'administered_by').order_by('date_administered')
+
+    return render(request, 'accounts/patient_report_print.html', {
+        'patient': patient,
+        'vaccinations': vaccinations,
+        'generated': date.today(),
     })

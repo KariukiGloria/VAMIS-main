@@ -43,6 +43,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.InactivityLogoutMiddleware',
 ]
 
 ROOT_URLCONF = 'vamis.urls'
@@ -132,8 +133,13 @@ EMAIL_BACKEND = os.getenv(
     'EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_AGE = 28800
+SESSION_COOKIE_AGE = 1800
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 CSRF_COOKIE_HTTPONLY = True
+
+SESSION_INACTIVITY_TIMEOUT = 900  # 15 min
+
 
 LOW_STOCK_THRESHOLD = int(os.getenv('LOW_STOCK_THRESHOLD', 50))
 EXPIRY_WARNING_DAYS = int(os.getenv('EXPIRY_WARNING_DAYS', 30))

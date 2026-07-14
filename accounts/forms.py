@@ -1,3 +1,8 @@
+import re
+import secrets
+import string
+from datetime import date
+
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, UserChangeForm
 from .models import User, Patient
@@ -80,7 +85,7 @@ class PatientForm(forms.ModelForm):
 
 
 class ChildRegistrationForm(forms.ModelForm):
-    """Simplified form for health workers registering a child under 2 yrs."""
+    """Health worker registers a child (patient). Age must be under 5 years."""
     date_of_birth = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
@@ -100,14 +105,34 @@ class ChildRegistrationForm(forms.ModelForm):
         self.fields['guardian_contact'].required = True
         if self.health_worker and self.health_worker.facility:
             self.fields['facility'].initial = self.health_worker.facility
-            self.fields['facility'].widget.attrs['class'] = 'form-control'
 
-    def save(self, commit=True):
-        patient = super().save(commit=False)
-        patient.gender = 'O'
-        if commit:
-            patient.save()
-        return patient
+    def clean_date_of_birth(self):
+        dob = self.cleaned_data.get('date_of_birth')
+        if dob:
+            today = date.today()
+            if dob > today:
+                raise forms.ValidationError(
+                    'Date of birth cannot be in the future.')
+            age_months = (today.year - dob.year) * \
+                12 + (today.month - dob.month)
+            if age_months > 60:
+                raise forms.ValidationError(
+                    'This system only manages children under 5 years old.')
+        return dob
+
+    @staticmethod
+    def generate_credentials(guardian_name):
+        """Generate a unique username (from guardian name) and a secure password."""
+        base = re.sub(
+            r'[^a-z0-9]', '', guardian_name.lower().replace(' ', ''))[:12] or 'patient'
+        username = base
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f'{base}{counter}'
+            counter += 1
+        alphabet = string.ascii_letters + string.digits
+        raw_password = ''.join(secrets.choice(alphabet) for _ in range(10))
+        return username, raw_password
 
 
 class GuardianContactForm(forms.ModelForm):

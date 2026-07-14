@@ -96,3 +96,25 @@ class Patient(models.Model):
             (today.month, today.day) < (
                 self.date_of_birth.month, self.date_of_birth.day)
         )
+
+    @property
+    def age_in_months(self):
+        from datetime import date
+        today = date.today()
+        return (today.year - self.date_of_birth.year) * 12 + (
+            today.month - self.date_of_birth.month)
+
+    @property
+    def age_display(self):
+        months = self.age_in_months
+        if months < 1:
+            from datetime import date
+            days = (date.today() - self.date_of_birth).days
+            return f'{days} day{"s" if days != 1 else ""} old'
+        if months < 12:
+            return f'{months} month{"s" if months != 1 else ""} old'
+        years = months // 12
+        rem = months % 12
+        if rem:
+            return f'{years}y {rem}m old'
+        return f'{years} year{"s" if years != 1 else ""} old'

@@ -3,9 +3,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from .models import Alert
+from accounts.decorators import permission_required
 
 
 @login_required
+@permission_required('can_view_alerts')
 def alert_list(request):
     qs = Alert.objects.select_related(
         'vaccine', 'facility', 'batch', 'resolved_by')
@@ -24,6 +26,7 @@ def alert_list(request):
 
 
 @login_required
+@permission_required('can_resolve_alerts')
 def alert_resolve(request, pk):
     alert = get_object_or_404(Alert, pk=pk)
     alert.is_resolved = True
@@ -35,6 +38,7 @@ def alert_resolve(request, pk):
 
 
 @login_required
+@permission_required('can_resolve_alerts')
 def alert_resolve_all(request):
     qs = Alert.objects.filter(is_resolved=False)
     if not request.user.is_admin and request.user.facility:

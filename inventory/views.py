@@ -10,6 +10,7 @@ from .models import (Vaccine, VaccineBatch, StockTransaction,
 from .forms import (FacilityForm, SupplierForm, VaccineForm, VaccineBatchForm,
                     StockTransactionForm, VaccinationRecordForm, RestockRequestForm)
 from alerts.models import Alert
+from accounts.decorators import permission_required
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -265,7 +266,7 @@ def stock_list(request):
                          then=F('quantity_moved') * -1),
                     default=0, output_field=IntegerField()
                 ))
-            )['bal'] or 0
+        )['bal'] or 0
         stock_summary.append({
             'vaccine': v,
             'remaining': bal,
@@ -320,6 +321,7 @@ def vaccination_list(request):
 
 
 @login_required
+@permission_required('can_record_vaccination')
 def vaccination_add(request):
     if request.user.is_distributor:
         messages.error(request, 'Access denied.')
@@ -425,6 +427,7 @@ def restock_update_status(request, pk):
 # ─── REPORTS ──────────────────────────────────────────────────────────────────
 
 @login_required
+@permission_required('can_view_reports')
 def reports(request):
     if not (request.user.is_admin or request.user.is_health_worker):
         messages.error(request, 'Access denied.')
@@ -468,7 +471,7 @@ def reports(request):
         .order_by('month')
     )
     line_labels = [e['month'].strftime('%b %Y') for e in monthly_qs]
-    line_data   = [e['count'] for e in monthly_qs]
+    line_data = [e['count'] for e in monthly_qs]
 
     # ── Pie chart 1: vaccine type distribution ──
     vaccine_dist_qs = (
@@ -478,7 +481,7 @@ def reports(request):
         .order_by('-count')[:8]
     )
     pie_vaccine_labels = [e['batch__vaccine__name'] for e in vaccine_dist_qs]
-    pie_vaccine_data   = [e['count'] for e in vaccine_dist_qs]
+    pie_vaccine_data = [e['count'] for e in vaccine_dist_qs]
 
     # ── Pie chart 2: patients per facility ──
     patient_facility_qs = (
@@ -487,8 +490,9 @@ def reports(request):
         .annotate(count=Count('id'))
         .order_by('-count')[:8]
     )
-    pie_facility_labels = [e['facility__name'] or 'Unknown' for e in patient_facility_qs]
-    pie_facility_data   = [e['count'] for e in patient_facility_qs]
+    pie_facility_labels = [e['facility__name']
+                           or 'Unknown' for e in patient_facility_qs]
+    pie_facility_data = [e['count'] for e in patient_facility_qs]
 
     # ── Stock overview per vaccine ──
     vaccine_stock = []
@@ -509,10 +513,10 @@ def reports(request):
 
     # ── Summary stats ──
     total_vacc_qs = VaccinationRecord.objects.all()
-    total_pat_qs  = Patient.objects.all()
+    total_pat_qs = Patient.objects.all()
     if facility_filter:
         total_vacc_qs = total_vacc_qs.filter(facility=facility_filter)
-        total_pat_qs  = total_pat_qs.filter(facility=facility_filter)
+        total_pat_qs = total_pat_qs.filter(facility=facility_filter)
 
     context = {
         # Charts

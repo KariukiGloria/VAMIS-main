@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Permissions — {{ target_user.get_full_name }}{% endblock %}
+{% block page_title %}User Permissions{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <span>
+          <i class="fas fa-shield-alt me-2" style="color:var(--pink-dark)"></i>
+          Permissions — {{ target_user.get_full_name|default:target_user.username }}
+          <span class="badge-vamis badge-blue ms-2">{{ target_user.get_role_display }}</span>
+        </span>
+        <a href="{% url 'user_list' %}" class="btn-outline-vamis" style="font-size:12px;padding:5px 12px;">
+          <i class="fas fa-arrow-left"></i> Back
+        </a>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <p style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;">
+            Clinical
+          </p>
+          {% for field in form %}
+            {% if 'patient' in field.name or 'vaccination' in field.name %}
+            <div class="form-check mb-3 d-flex align-items-center gap-3">
+              {{ field }}
+              <label class="form-check-label" for="{{ field.id_for_label }}" style="font-size:14px;">
+                {{ field.label }}
+              </label>
+              {% if field.errors %}
+              <div style="color:#dc2626;font-size:12px;">{{ field.errors.0 }}</div>
+              {% endif %}
+            </div>
+            {% endif %}
+          {% endfor %}
+
+          <hr style="border-color:var(--border);margin:12px 0 16px;">
+          <p style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;">
+            Inventory
+          </p>
+          {% for field in form %}
+            {% if 'stock' in field.name or 'batch' in field.name or 'restock' in field.name %}
+            <div class="form-check mb-3 d-flex align-items-center gap-3">
+              {{ field }}
+              <label class="form-check-label" for="{{ field.id_for_label }}" style="font-size:14px;">
+                {{ field.label }}
+              </label>
+            </div>
+            {% endif %}
+          {% endfor %}
+
+          <hr style="border-color:var(--border);margin:12px 0 16px;">
+          <p style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;">
+            Alerts &amp; Reports
+          </p>
+          {% for field in form %}
+            {% if 'alert' in field.name or 'report' in field.name %}
+            <div class="form-check mb-3 d-flex align-items-center gap-3">
+              {{ field }}
+              <label class="form-check-label" for="{{ field.id_for_label }}" style="font-size:14px;">
+                {{ field.label }}
+              </label>
+            </div>
+            {% endif %}
+          {% endfor %}
+
+          <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn-pink">
+              <i class="fas fa-save"></i> Save Permissions
+            </button>
+            <a href="{% url 'user_list' %}" class="btn-outline-vamis">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

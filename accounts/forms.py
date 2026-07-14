@@ -6,7 +6,7 @@ from datetime import date
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, UserChangeForm
 from django.core.validators import RegexValidator
-from .models import User, Patient
+from .models import User, Patient, UserPermission
 
 
 # ── Shared validators ──────────────────────────────────────────────────────────
@@ -124,13 +124,6 @@ class PatientForm(forms.ModelForm):
 # ── Child registration (health worker) ────────────────────────────────────────
 
 class ChildRegistrationForm(forms.ModelForm):
-    """
-    Health worker registers a child (patient).
-    - Child must be under 5 years old.
-    - Guardian name and contact are required.
-    - Guardian contact must be a valid Kenyan number: 254XXXXXXXXX (12 digits).
-    - A login-ready User account is created for the guardian/patient in the view.
-    """
 
     date_of_birth = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
@@ -164,87 +157,15 @@ class ChildRegistrationForm(forms.ModelForm):
         # Pre-fill facility from health worker's assigned facility
         if self.health_worker and self.health_worker.facility:
             self.fields['facility'].initial = self.health_worker.facility
+            self.fields['facility'].widget.attrs['class'] = 'form-control'
 
-    # ── Field-level validations ────────────────────────────────────────────────
+    def save(self, commit=True):
+        patient = super().save(commit=False)
+        patient.gender = 'O'
+        if commit:
+            patient.save()
+        return patient
 
-    def clean_first_name(self):
-        value = self.cleaned_data.get('first_name', '').strip()
-        if len(value) < 2:
-            raise forms.ValidationError(
-                'First name must be at least 2 characters.')
-        name_validator(value)
-        return value.title()
-
-    def clean_last_name(self):
-        value = self.cleaned_data.get('last_name', '').strip()
-        if len(value) < 2:
-            raise forms.ValidationError(
-                'Last name must be at least 2 characters.')
-        name_validator(value)
-        return value.title()
-
-    def clean_guardian_name(self):
-        value = self.cleaned_data.get('guardian_name', '').strip()
-        if len(value) < 3:
-            raise forms.ValidationError(
-                'Guardian name must be at least 3 characters.')
-        name_validator(value)
-        return value.title()
-
-    def clean_guardian_contact(self):
-        value = self.cleaned_data.get('guardian_contact', '').strip()
-        # Strip accidental spaces or dashes so 254 712 345678 still passes
-        value = re.sub(r'[\s\-]', '', value)
-        if not re.fullmatch(r'^254\d{9}$', value):
-            raise forms.ValidationError(
-                'Enter a valid Kenyan number starting with 254 followed by '
-                'exactly 9 digits — no spaces or dashes (e.g. 254712345678).'
-            )
-        # Check uniqueness — one account per guardian contact
-        qs = Patient.objects.filter(guardian_contact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise forms.ValidationError(
-                'A child is already registered under this contact number.'
-            )
-        return value
-
-    def clean_date_of_birth(self):
-        dob = self.cleaned_data.get('date_of_birth')
-        if dob:
-            today = date.today()
-            if dob > today:
-                raise forms.ValidationError(
-                    'Date of birth cannot be in the future.')
-            age_months = (today.year - dob.year) * \
-                12 + (today.month - dob.month)
-            if age_months > 60:
-                raise forms.ValidationError(
-                    'This system only manages children under 5 years old.'
-                )
-            if age_months < 0:
-                raise forms.ValidationError('Invalid date of birth.')
-        return dob
-
-    # ── Credential generation ──────────────────────────────────────────────────
-
-    @staticmethod
-    def generate_credentials(guardian_name):
-        """Generate a unique username (from guardian name) and a secure 10-char password."""
-        base = re.sub(
-            r'[^a-z0-9]', '', guardian_name.lower().replace(' ', ''))[:12] or 'patient'
-        username = base
-        counter = 1
-        while User.objects.filter(username=username).exists():
-            username = f'{base}{counter}'
-            counter += 1
-        alphabet = string.ascii_letters + string.digits
-        raw_password = ''.join(secrets.choice(alphabet) for _ in range(10))
-        return username, raw_password
-
-
-# ── Guardian contact update (patient portal) ──────────────────────────────────
 
 class GuardianContactForm(forms.ModelForm):
     """Allows the guardian/patient-user to update their contact number from the portal."""
@@ -318,3 +239,16 @@ class PatientPasswordChangeForm(forms.Form):
         if p1 and p2 and p1 != p2:
             raise forms.ValidationError('Passwords do not match.')
         return cleaned_data
+
+
+class UserPermissionForm(forms.ModelForm):
+    class Meta:
+        model = UserPermission
+        exclude = ['user']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            field.widget.attrs['class'] = 'form-check-input'
+            # Make label human-readable
+            field.label = name.replace('can_', '').replace('_', ' ').title()

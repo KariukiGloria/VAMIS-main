@@ -23,6 +23,7 @@ urlpatterns = [
          views.user_edit,          name='user_edit'),
     path('users/<int:pk>/toggle-active/',
          views.user_toggle_active, name='user_toggle_active'),
+    path('users/<int:pk>/permissions/', views.user_permissions_edit, name='user_permissions_edit'),
 
     # Patient portal
     path('portal/',        views.patient_portal,     name='patient_portal'),

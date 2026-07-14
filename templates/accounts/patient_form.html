@@ -6,7 +6,7 @@
   <div class="col-lg-9 col-xl-8">
     <div class="card">
       <div class="card-header">
-        <span><i class="fas fa-user-plus me-2" style="color:var(--pink-dark)"></i>{{ title }}</span>
+        <span><i class="fas fa-user-edit me-2" style="color:var(--pink-dark)"></i>{{ title }}</span>
         <a href="{% url 'patient_list' %}" class="btn-outline-vamis" style="font-size:12px;padding:5px 12px;"><i class="fas fa-arrow-left"></i> Back</a>
       </div>
       <div class="card-body">
@@ -18,6 +18,10 @@
             <div>{{ form.non_field_errors.0 }}</div>
           </div>
           {% endif %}
+
+          <p style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">
+            Child details
+          </p>
           <div class="row">
             <div class="col-md-6 mb-3">
               <label class="form-label">First Name <span style="color:var(--pink-dark)">*</span></label>
@@ -40,17 +44,9 @@
               {% if form.gender.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.gender.errors.0 }}</div>{% endif %}
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label">Phone</label>
-              {{ form.phone }}
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label">National ID <span class="text-muted" style="font-size:11px;">(adults)</span></label>
+              <label class="form-label">National ID <span class="text-muted" style="font-size:11px;">(optional)</span></label>
               {{ form.national_id }}
               {% if form.national_id.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.national_id.errors.0 }}</div>{% endif %}
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label">Guardian / Parent Name <span class="text-muted" style="font-size:11px;">(for minors)</span></label>
-              {{ form.guardian_name }}
             </div>
             <div class="col-md-6 mb-3">
               <label class="form-label">Facility <span style="color:var(--pink-dark)">*</span></label>
@@ -58,6 +54,25 @@
               {% if form.facility.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.facility.errors.0 }}</div>{% endif %}
             </div>
           </div>
+
+          <hr style="border-color:var(--border);margin:8px 0 16px;">
+          <p style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">
+            Guardian details
+          </p>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Guardian / Parent Name <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.guardian_name }}
+              {% if form.guardian_name.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.guardian_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Guardian Contact <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.guardian_contact }}
+              {% if form.guardian_contact.errors %}<div style="color:#dc2626;font-size:12px;margin-top:4px;">{{ form.guardian_contact.errors.0 }}</div>{% endif %}
+              <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Format: 254712345678</div>
+            </div>
+          </div>
+
           <div class="d-flex gap-2 mt-2">
             <button type="submit" class="btn-pink"><i class="fas fa-save"></i> {{ action }}</button>
             <a href="{% url 'patient_list' %}" class="btn-outline-vamis">Cancel</a>

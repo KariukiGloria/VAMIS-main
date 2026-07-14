@@ -9,6 +9,18 @@ from .models import User, Patient
 from inventory.models import (VaccinationRecord, StockTransaction,
                               Facility, Vaccine, VaccineBatch, RestockRequest)
 from alerts.models import Alert
+from .decorators import permission_required
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle
+)
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from django.http import HttpResponse
 
 from reportlab.platypus import (
     SimpleDocTemplate,
@@ -125,6 +137,7 @@ def dashboard(request):
 # ─── PATIENTS ─────────────────────────────────────────────────────────────────
 
 @login_required
+@permission_required('can_view_patients')
 def patient_list(request):
     if request.user.is_distributor:
         messages.error(request, 'You do not have access to patient records.')
@@ -165,19 +178,14 @@ def patient_detail(request, pk):
 
 
 @login_required
+@permission_required('can_register_patients')
 def patient_add(request):
     if request.user.is_distributor:
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
-    form = PatientForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        patient = form.save()
-        messages.success(
-            request, f'Patient {patient.full_name} registered successfully.')
-        return redirect('patient_detail', pk=patient.pk)
-    return render(request, 'accounts/patient_form.html', {
-        'form': form, 'title': 'Register New Patient', 'action': 'Register'
-    })
+    # All patient registration goes through child_register
+    # which collects guardian details and creates a login account
+    return redirect('child_register')
 
 
 @login_required
@@ -266,12 +274,45 @@ def user_toggle_active(request, pk):
     return redirect('user_list')
 
 
+@login_required
+def user_permissions_edit(request, pk):
+    if not request.user.is_admin:
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+    from .models import UserPermission
+    from .forms import UserPermissionForm
+    user_obj = get_object_or_404(User, pk=pk)
+    # Admins and patients don't need granular permissions
+    if user_obj.is_admin or user_obj.is_patient:
+        messages.warning(
+            request,
+            'Permissions are only configurable for health workers and distributors.'
+        )
+        return redirect('user_list')
+    perms = UserPermission.get_or_create_for(user_obj)
+    form = UserPermissionForm(request.POST or None, instance=perms)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(
+            request, f'Permissions updated for {user_obj.get_full_name()}.')
+        return redirect('user_list')
+    return render(request, 'accounts/user_permissions.html', {
+        'form': form,
+        'target_user': user_obj,
+    })
+
 # ─── PATIENT PORTAL ───────────────────────────────────────────────────────────
+
 
 @login_required
 def patient_portal(request):
     if not request.user.is_patient:
         return redirect('dashboard')
+   # Force password change on first login
+    if request.user.must_change_password:
+        return redirect('patient_change_password')
+
+   # Safety net — atomic registration prevents this, but handles edge cases
 
     # Safety net — atomic registration prevents this, but handles edge cases
     try:
@@ -324,6 +365,7 @@ def patient_portal(request):
 # ─── CHILD REGISTRATION (health worker) ────────────────────────────────────────
 
 @login_required
+@permission_required('can_register_patients')
 def child_register(request):
     if not (request.user.is_health_worker or request.user.is_admin):
         messages.error(request, 'Access denied.')
@@ -349,12 +391,19 @@ def child_register(request):
                     first_name=patient.guardian_name,
                     phone=patient.guardian_contact,
                     role='patient',
+                    must_change_password=True,
                 )
                 patient.user_account = patient_user
                 patient.save()
                 # Both patient and user_account saved — or both rolled back
 
             # Store credentials in session, shown ONCE then cleared
+                request.session['new_patient_credentials'] = {
+                    'patient_name': patient.full_name,
+                    'guardian_name': patient.guardian_name,
+                    'username': username,
+                    'password': raw_password,
+                }
             request.session['new_patient_credentials'] = {
                 'patient_name': patient.full_name,
                 'guardian_name': patient.guardian_name,
@@ -406,4 +455,29 @@ def patient_report_pdf(request):
         'patient': patient,
         'vaccinations': vaccinations,
         'generated': date.today(),
+    })
+
+
+# ─── PATIENT PASSWORD CHANGE ──────────────────────────────────────────────────
+
+@login_required
+def patient_change_password(request):
+    if not request.user.is_patient:
+        return redirect('dashboard')
+
+    from .forms import PatientPasswordChangeForm
+    form = PatientPasswordChangeForm(request.POST or None)
+
+    if request.method == 'POST' and form.is_valid():
+        new_password = form.cleaned_data['new_password1']
+        request.user.set_password(new_password)
+        request.user.must_change_password = False
+        request.user.save()
+        update_session_auth_hash(request, request.user)
+        messages.success(request, 'Password changed successfully. Welcome!')
+        return redirect('patient_portal')
+
+    return render(request, 'accounts/patient_change_password.html', {
+        'form': form,
+        'forced': request.user.must_change_password,
     })

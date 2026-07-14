@@ -1,5 +1,12 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.core.validators import RegexValidator
+
+
+kenyan_phone_validator = RegexValidator(
+    regex=r'^254\d{9}$',
+    message='Enter a valid Kenyan phone number starting with 254 followed by 9 digits (e.g. 254712345678).'
+)
 
 
 class User(AbstractUser):
@@ -17,25 +24,28 @@ class User(AbstractUser):
         null=True, blank=True,
         related_name='staff'
     )
-    phone = models.CharField(max_length=20, blank=True)
+    phone = models.CharField(max_length=20, blank=True,
+                             validators=[kenyan_phone_validator])
     is_approved = models.BooleanField(default=True)
+    must_change_password = models.BooleanField(default=False, help_text='Force password change on next login (set for auto-generated accounts).'
+)
 
-    # Required when using a custom user model alongside AbstractUser
-    # Prevents reverse accessor clash with the built-in auth.User
+ # Required when using a custom user model alongside AbstractUser
+ # Prevents reverse accessor clash with the built-in auth.User
     groups = models.ManyToManyField(
-        'auth.Group',
-        blank=True,
-        related_name='vamis_users',
-        help_text='The groups this user belongs to.',
-        verbose_name='groups',
-    )
+      'auth.Group',
+      blank=True,
+      related_name='vamis_users',
+      help_text='The groups this user belongs to.',
+      verbose_name='groups',
+      )
     user_permissions = models.ManyToManyField(
-        'auth.Permission',
+       'auth.Permission',
         blank=True,
         related_name='vamis_users',
         help_text='Specific permissions for this user.',
         verbose_name='user permissions',
-    )
+       )
 
     def __str__(self):
         return f"{self.get_full_name() or self.username} ({self.get_role_display()})"
@@ -63,11 +73,17 @@ class Patient(models.Model):
     last_name = models.CharField(max_length=100)
     date_of_birth = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
-    phone = models.CharField(max_length=20, blank=True)
+    phone = models.CharField(max_length=20, blank=True,
+                             validators=[kenyan_phone_validator])
     national_id = models.CharField(
         max_length=20, blank=True, unique=True, null=True)
     guardian_name = models.CharField(max_length=100, blank=True)
-    guardian_contact = models.CharField(max_length=20, blank=True)
+    guardian_contact = models.CharField(
+        max_length=12,
+        blank=True,
+        validators=[kenyan_phone_validator],
+        help_text='Format: 254XXXXXXXXX (12 digits)'
+    )
     user_account = models.OneToOneField(
         'User', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='patient_profile'

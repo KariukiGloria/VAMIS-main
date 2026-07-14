@@ -27,6 +27,9 @@ urlpatterns = [
     # Patient portal
     path('portal/',        views.patient_portal,     name='patient_portal'),
     path('portal/report/', views.patient_report_pdf, name='patient_report_pdf'),
+    # ADD inside urlpatterns, under the portal lines:
+    path('portal/change-password/', views.patient_change_password,
+         name='patient_change_password'),
 
     # Child registration (health workers / admin)
     path('patients/register-child/',

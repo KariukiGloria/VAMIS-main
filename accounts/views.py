@@ -169,15 +169,9 @@ def patient_add(request):
     if request.user.is_distributor:
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
-    form = PatientForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        patient = form.save()
-        messages.success(
-            request, f'Patient {patient.full_name} registered successfully.')
-        return redirect('patient_detail', pk=patient.pk)
-    return render(request, 'accounts/patient_form.html', {
-        'form': form, 'title': 'Register New Patient', 'action': 'Register'
-    })
+    # All patient registration goes through child_register
+    # which collects guardian details and creates a login account
+    return redirect('child_register')
 
 
 @login_required
@@ -272,6 +266,9 @@ def user_toggle_active(request, pk):
 def patient_portal(request):
     if not request.user.is_patient:
         return redirect('dashboard')
+    # Force password change on first login
+    if request.user.must_change_password:
+        return redirect('patient_change_password')
 
     # Safety net — atomic registration prevents this, but handles edge cases
     try:
@@ -336,7 +333,6 @@ def child_register(request):
         try:
             with transaction.atomic():
                 patient = form.save(commit=False)
-                patient.gender = 'O'
 
                 # Generate unique username + secure password
                 username, raw_password = ChildRegistrationForm.generate_credentials(
@@ -349,6 +345,7 @@ def child_register(request):
                     first_name=patient.guardian_name,
                     phone=patient.guardian_contact,
                     role='patient',
+                    must_change_password=True,
                 )
                 patient.user_account = patient_user
                 patient.save()
@@ -383,6 +380,32 @@ def child_register_success(request):
         return redirect('patient_list')
     return render(request, 'accounts/child_register_success.html', {
         'credentials': credentials,
+    })
+
+
+# ─── PATIENT PASSWORD CHANGE ──────────────────────────────────────────────────
+
+@login_required
+def patient_change_password(request):
+    if not request.user.is_patient:
+        return redirect('dashboard')
+
+    from .forms import PatientPasswordChangeForm
+    form = PatientPasswordChangeForm(request.POST or None)
+
+    if request.method == 'POST' and form.is_valid():
+        new_password = form.cleaned_data['new_password1']
+        request.user.set_password(new_password)
+        request.user.must_change_password = False
+        request.user.save()
+        # Keep them logged in after password change
+        update_session_auth_hash(request, request.user)
+        messages.success(request, 'Password changed successfully. Welcome!')
+        return redirect('patient_portal')
+
+    return render(request, 'accounts/patient_change_password.html', {
+        'form': form,
+        'forced': request.user.must_change_password,
     })
 
 

@@ -267,7 +267,7 @@ def stock_list(request):
                     default=0, output_field=IntegerField()
                 ))
         )['bal'] or 0
-            )['bal'] or 0
+
         stock_summary.append({
             'vaccine': v,
             'remaining': bal,
@@ -483,7 +483,7 @@ def reports(request):
     )
     pie_vaccine_labels = [e['batch__vaccine__name'] for e in vaccine_dist_qs]
     pie_vaccine_data = [e['count'] for e in vaccine_dist_qs]
-    pie_vaccine_data   = [e['count'] for e in vaccine_dist_qs]
+    pie_vaccine_data = [e['count'] for e in vaccine_dist_qs]
 
     # ── Pie chart 2: patients per facility ──
     patient_facility_qs = (
@@ -495,8 +495,9 @@ def reports(request):
     pie_facility_labels = [e['facility__name']
                            or 'Unknown' for e in patient_facility_qs]
     pie_facility_data = [e['count'] for e in patient_facility_qs]
-    pie_facility_labels = [e['facility__name'] or 'Unknown' for e in patient_facility_qs]
-    pie_facility_data   = [e['count'] for e in patient_facility_qs]
+    pie_facility_labels = [e['facility__name']
+                           or 'Unknown' for e in patient_facility_qs]
+    pie_facility_data = [e['count'] for e in patient_facility_qs]
 
     # ── Stock overview per vaccine ──
     vaccine_stock = []
@@ -521,10 +522,10 @@ def reports(request):
     if facility_filter:
         total_vacc_qs = total_vacc_qs.filter(facility=facility_filter)
         total_pat_qs = total_pat_qs.filter(facility=facility_filter)
-    total_pat_qs  = Patient.objects.all()
+    total_pat_qs = Patient.objects.all()
     if facility_filter:
         total_vacc_qs = total_vacc_qs.filter(facility=facility_filter)
-        total_pat_qs  = total_pat_qs.filter(facility=facility_filter)
+        total_pat_qs = total_pat_qs.filter(facility=facility_filter)
 
     context = {
         # Charts

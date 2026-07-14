@@ -267,6 +267,7 @@ def stock_list(request):
                     default=0, output_field=IntegerField()
                 ))
         )['bal'] or 0
+            )['bal'] or 0
         stock_summary.append({
             'vaccine': v,
             'remaining': bal,
@@ -482,6 +483,7 @@ def reports(request):
     )
     pie_vaccine_labels = [e['batch__vaccine__name'] for e in vaccine_dist_qs]
     pie_vaccine_data = [e['count'] for e in vaccine_dist_qs]
+    pie_vaccine_data   = [e['count'] for e in vaccine_dist_qs]
 
     # ── Pie chart 2: patients per facility ──
     patient_facility_qs = (
@@ -493,6 +495,8 @@ def reports(request):
     pie_facility_labels = [e['facility__name']
                            or 'Unknown' for e in patient_facility_qs]
     pie_facility_data = [e['count'] for e in patient_facility_qs]
+    pie_facility_labels = [e['facility__name'] or 'Unknown' for e in patient_facility_qs]
+    pie_facility_data   = [e['count'] for e in patient_facility_qs]
 
     # ── Stock overview per vaccine ──
     vaccine_stock = []
@@ -517,6 +521,10 @@ def reports(request):
     if facility_filter:
         total_vacc_qs = total_vacc_qs.filter(facility=facility_filter)
         total_pat_qs = total_pat_qs.filter(facility=facility_filter)
+    total_pat_qs  = Patient.objects.all()
+    if facility_filter:
+        total_vacc_qs = total_vacc_qs.filter(facility=facility_filter)
+        total_pat_qs  = total_pat_qs.filter(facility=facility_filter)
 
     context = {
         # Charts
@@ -542,4 +550,5 @@ def reports(request):
         'range_options':        [('3', 'Last 3 months'), ('6', 'Last 6 months'),
                                  ('12', 'Last 12 months'), ('24', 'Last 2 years')],
     }
+    return render(request, 'inventory/reports.html', context)
     return render(request, 'inventory/reports.html', context)

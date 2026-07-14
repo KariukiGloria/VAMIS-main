@@ -22,6 +22,17 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from django.http import HttpResponse
 
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle
+)
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from django.http import HttpResponse
+
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
@@ -302,6 +313,8 @@ def patient_portal(request):
         return redirect('patient_change_password')
 
    # Safety net — atomic registration prevents this, but handles edge cases
+
+    # Safety net — atomic registration prevents this, but handles edge cases
     try:
         patient = request.user.patient_profile
     except Patient.DoesNotExist:
@@ -365,6 +378,7 @@ def child_register(request):
         try:
             with transaction.atomic():
                 patient = form.save(commit=False)
+                patient.gender = 'O'
 
                 # Generate unique username + secure password
                 username, raw_password = ChildRegistrationForm.generate_credentials(
@@ -390,6 +404,12 @@ def child_register(request):
                     'username': username,
                     'password': raw_password,
                 }
+            request.session['new_patient_credentials'] = {
+                'patient_name': patient.full_name,
+                'guardian_name': patient.guardian_name,
+                'username': username,
+                'password': raw_password,
+            }
             return redirect('child_register_success')
 
         except Exception as e:

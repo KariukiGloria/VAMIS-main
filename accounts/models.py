@@ -24,14 +24,17 @@ class User(AbstractUser):
         null=True, blank=True,
         related_name='staff'
     )
-    phone = models.CharField(max_length=20, blank=True,
-                             validators=[kenyan_phone_validator])
+    phone = models.CharField(
+        max_length=20, blank=True,
+        validators=[kenyan_phone_validator]
+    )
     is_approved = models.BooleanField(default=True)
-    must_change_password = models.BooleanField(default=False, help_text='Force password change on next login (set for auto-generated accounts).'
-                                               )
+    must_change_password = models.BooleanField(
+        default=False,
+        help_text='Force password change on next login (set for auto-generated accounts).'
+    )
 
- # Required when using a custom user model alongside AbstractUser
- # Prevents reverse accessor clash with the built-in auth.User
+    # Prevents reverse accessor clash with the built-in auth.User
     groups = models.ManyToManyField(
         'auth.Group',
         blank=True,
@@ -73,8 +76,10 @@ class Patient(models.Model):
     last_name = models.CharField(max_length=100)
     date_of_birth = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
-    phone = models.CharField(max_length=20, blank=True,
-                             validators=[kenyan_phone_validator])
+    phone = models.CharField(
+        max_length=20, blank=True,
+        validators=[kenyan_phone_validator]
+    )
     national_id = models.CharField(
         max_length=20, blank=True, unique=True, null=True)
     guardian_name = models.CharField(max_length=100, blank=True)
@@ -134,3 +139,63 @@ class Patient(models.Model):
         if rem:
             return f'{years}y {rem}m old'
         return f'{years} year{"s" if years != 1 else ""} old'
+
+
+class UserPermission(models.Model):
+    """
+    Granular feature permissions assigned per user by admin.
+    Admin always has everything — this model is for health_worker and distributor only.
+    """
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='permissions_profile'
+    )
+    # Clinical
+    can_view_patients = models.BooleanField(default=True)
+    can_register_patients = models.BooleanField(default=True)
+    can_record_vaccination = models.BooleanField(default=True)
+    # Inventory
+    can_view_stock = models.BooleanField(default=True)
+    can_manage_stock = models.BooleanField(default=False)
+    can_view_batches = models.BooleanField(default=True)
+    can_manage_batches = models.BooleanField(default=False)
+    can_restock = models.BooleanField(default=True)
+    # Alerts
+    can_view_alerts = models.BooleanField(default=True)
+    can_resolve_alerts = models.BooleanField(default=False)
+    # Reports
+    can_view_reports = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f'Permissions — {self.user}'
+
+    @classmethod
+    def get_or_create_for(cls, user):
+        """Get or create with role-based defaults."""
+        obj, created = cls.objects.get_or_create(user=user)
+        if created:
+            if user.is_health_worker:
+                obj.can_view_patients = True
+                obj.can_register_patients = True
+                obj.can_record_vaccination = True
+                obj.can_view_stock = True
+                obj.can_view_batches = True
+                obj.can_restock = True
+                obj.can_view_alerts = True
+                obj.can_resolve_alerts = False
+                obj.can_view_reports = False
+            elif user.is_distributor:
+                obj.can_view_patients = False
+                obj.can_register_patients = False
+                obj.can_record_vaccination = False
+                obj.can_view_stock = True
+                obj.can_manage_stock = True
+                obj.can_view_batches = True
+                obj.can_manage_batches = True
+                obj.can_restock = True
+                obj.can_view_alerts = False
+                obj.can_resolve_alerts = False
+                obj.can_view_reports = False
+            obj.save()
+        return obj

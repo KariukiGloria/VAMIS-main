@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-industry me-2" style="color:var(--blue)"></i>{{ title }}</span>
+        <a href="{% url 'supplier_list' %}" class="btn-outline-vamis" style="font-size:0.8rem;padding:5px 12px;">
+          <i class="fas fa-arrow-left"></i> Back
+        </a>
+      </div>
+      <div class="card-body">
+        <div class="alert-banner info mb-4">
+          <i class="fas fa-info-circle alert-icon"></i>
+          <div style="font-size:0.875rem;">
+            This creates both a supplier record and a login account for the distributor.
+            The distributor logs in with the username and password you set below.
+          </div>
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <p style="font-size:0.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Supplier details</p>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Company / supplier name <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.name }}
+              {% if form.name.errors %}<div style="color:#dc2626;font-size:0.8rem;margin-top:4px;">{{ form.name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Contact email <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.contact_email }}
+              {% if form.contact_email.errors %}<div style="color:#dc2626;font-size:0.8rem;margin-top:4px;">{{ form.contact_email.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Phone <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.phone }}
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:3px;">Format: 254712345678</div>
+              {% if form.phone.errors %}<div style="color:#dc2626;font-size:0.8rem;margin-top:4px;">{{ form.phone.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Address</label>
+              {{ form.address }}
+              {% if form.address.errors %}<div style="color:#dc2626;font-size:0.8rem;margin-top:4px;">{{ form.address.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          <hr style="border-color:var(--border);margin:8px 0 16px;">
+          <p style="font-size:0.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Login account</p>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Username <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.username }}
+              {% if form.username.errors %}<div style="color:#dc2626;font-size:0.8rem;margin-top:4px;">{{ form.username.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Password <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.password }}
+              {% if form.password.errors %}<div style="color:#dc2626;font-size:0.8rem;margin-top:4px;">{{ form.password.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Confirm password <span style="color:var(--pink-dark)">*</span></label>
+              {{ form.password2 }}
+              {% if form.password2.errors %}<div style="color:#dc2626;font-size:0.8rem;margin-top:4px;">{{ form.password2.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+          {% if form.non_field_errors %}
+          <div style="color:#dc2626;font-size:0.875rem;margin-bottom:12px;">{{ form.non_field_errors.0 }}</div>
+          {% endif %}
+
+          <div class="d-flex gap-2 mt-2">
+            <button type="submit" class="btn-vamis"><i class="fas fa-save"></i> Create supplier</button>
+            <a href="{% url 'supplier_list' %}" class="btn-outline-vamis">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

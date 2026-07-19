@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}Distributor Portal{% endblock %}
+{% block page_title %}Distributor Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Welcome, {{ user.first_name|default:user.username }} 👋</h2>
+    <p class="text-muted mb-0" style="font-size:14px;">Distributor Portal</p>
+  </div>
+</div>
+
+{# ── Quick actions ── #}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <a href="{% url 'batch_add' %}" class="stat-card text-decoration-none" style="flex-direction:column;gap:8px;">
+      <div class="stat-icon blue"><i class="fas fa-plus-circle"></i></div>
+      <div class="stat-label">Log Delivery</div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'stock_list' %}" class="stat-card text-decoration-none" style="flex-direction:column;gap:8px;">
+      <div class="stat-icon green"><i class="fas fa-warehouse"></i></div>
+      <div class="stat-label">View Stock</div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'batch_list' %}" class="stat-card text-decoration-none" style="flex-direction:column;gap:8px;">
+      <div class="stat-icon pink"><i class="fas fa-boxes"></i></div>
+      <div class="stat-label">All Batches</div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon orange"><i class="fas fa-clock"></i></div>
+      <div><div class="stat-value">{{ pending|length }}</div><div class="stat-label">Pending Requests</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  {# ── Pending restock requests ── #}
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-truck me-2" style="color:var(--pink-dark)"></i>Pending Restock Requests</span>
+      </div>
+      <div class="card-body p-0">
+        {% if pending %}
+        <div style="overflow-x:auto;">
+        <table class="table-vamis w-100">
+          <thead>
+            <tr><th>Vaccine</th><th>Facility</th><th>Qty</th><th>Requested</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+          {% for r in pending %}
+          <tr>
+            <td><strong>{{ r.vaccine.name }}</strong></td>
+            <td>{{ r.facility.name }}</td>
+            <td>{{ r.quantity_needed }}</td>
+            <td style="font-size:12px;color:var(--text-muted);">{{ r.date_requested|date:"M d, Y" }}</td>
+            <td>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="fulfill_request" value="{{ r.pk }}">
+                <button type="submit"
+                  class="btn-vamis"
+                  style="font-size:11px;padding:4px 10px;"
+                  onclick="return confirm('Fulfill request for {{ r.vaccine.name }} — {{ r.facility.name }}?')">
+                  <i class="fas fa-check"></i> Fulfill
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-check-circle" style="color:#22c55e;opacity:1;font-size:32px;"></i>
+          <p>No pending requests</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── My recent batches ── #}
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-boxes me-2" style="color:var(--blue)"></i>My Recent Deliveries</span>
+        <a href="{% url 'batch_add' %}" class="btn-vamis" style="font-size:12px;padding:5px 12px;">
+          <i class="fas fa-plus"></i> Log
+        </a>
+      </div>
+      <div class="card-body p-0">
+        {% if my_batches %}
+        <div style="overflow-x:auto;">
+        <table class="table-vamis w-100">
+          <thead><tr><th>Vaccine</th><th>Batch</th><th>Qty</th><th>Expiry</th></tr></thead>
+          <tbody>
+          {% for b in my_batches %}
+          <tr>
+            <td><strong>{{ b.vaccine.name }}</strong></td>
+            <td style="font-size:12px;color:var(--text-muted);">{{ b.batch_number }}</td>
+            <td>{{ b.quantity_received }}</td>
+            <td>
+              <span class="badge-vamis {% if b.is_expiring_soon %}badge-orange{% elif b.is_expired %}badge-red{% else %}badge-green{% endif %}">
+                {{ b.expiry_date }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><i class="fas fa-boxes"></i><p>No deliveries logged yet</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

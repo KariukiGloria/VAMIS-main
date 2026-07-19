@@ -49,6 +49,8 @@ def login_view(request):
             request, f'Welcome back, {user.first_name or user.username}!')
         if user.is_patient:
             return redirect('patient_portal')
+        if user.is_distributor:
+            return redirect('distributor_portal')
         next_url = request.GET.get('next', 'dashboard')
         return redirect(next_url)
     return render(request, 'accounts/login.html', {'form': form})
@@ -480,4 +482,62 @@ def patient_change_password(request):
     return render(request, 'accounts/patient_change_password.html', {
         'form': form,
         'forced': request.user.must_change_password,
+    })
+
+
+# ─── DISTRIBUTOR PORTAL ───────────────────────────────────────────────────────
+
+@login_required
+def distributor_portal(request):
+    if not request.user.is_distributor:
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+
+    from inventory.models import RestockRequest, StockTransaction, VaccineBatch
+    from django.utils import timezone
+
+    # Pending requests this distributor should fulfill
+    pending = RestockRequest.objects.filter(
+        status='pending'
+    ).select_related('vaccine', 'facility', 'requested_by').order_by('-date_requested')
+
+    # Stock transactions this distributor performed
+    recent_deliveries = StockTransaction.objects.filter(
+        performed_by=request.user,
+        transaction_type='delivery'
+    ).select_related('batch__vaccine', 'facility').order_by('-created_at')[:10]
+
+    # Batches this distributor created
+    my_batches = request.user.batches_created.select_related(
+        'vaccine', 'supplier'
+    ).order_by('-created_at')[:10]
+
+    # Handle fulfill action from portal
+    if request.method == 'POST':
+        req_pk = request.POST.get('fulfill_request')
+        if req_pk:
+            req = get_object_or_404(RestockRequest, pk=req_pk)
+            req.status = 'fulfilled'
+            req.date_fulfilled = timezone.now()
+            req.save()
+            from alerts.models import Alert
+            Alert.objects.create(
+                alert_type='restock_fulfilled',
+                severity='info',
+                title=f'Restock Fulfilled: {req.vaccine.name}',
+                message=(
+                    f'{req.quantity_needed} units of {req.vaccine.name} '
+                    f'fulfilled for {req.facility.name}.'
+                ),
+                vaccine=req.vaccine,
+                facility=req.facility,
+            )
+            messages.success(
+                request, f'Request fulfilled for {req.facility.name}.')
+            return redirect('distributor_portal')
+
+    return render(request, 'accounts/distributor_portal.html', {
+        'pending': pending,
+        'recent_deliveries': recent_deliveries,
+        'my_batches': my_batches,
     })

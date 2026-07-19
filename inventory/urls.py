@@ -8,8 +8,11 @@ urlpatterns = [
     path('facilities/<int:pk>/edit/', views.facility_edit, name='facility_edit'),
 
     # Suppliers
-    path('suppliers/',     views.supplier_list, name='supplier_list'),
-    path('suppliers/add/', views.supplier_add,  name='supplier_add'),
+    path('suppliers/',          views.supplier_list,      name='supplier_list'),
+    path('suppliers/add/',      views.supplier_add,       name='supplier_add'),
+    path('suppliers/create/',   views.supplier_create,    name='supplier_create'),
+    path('distributor/',        views.distributor_portal,
+         name='distributor_portal'),
 
     # Vaccines
     path('vaccines/',              views.vaccine_list,   name='vaccine_list'),

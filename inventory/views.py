@@ -7,10 +7,10 @@ import datetime
 
 from .models import (Vaccine, VaccineBatch, StockTransaction,
                      VaccinationRecord, RestockRequest, Facility, Supplier)
-from .forms import (FacilityForm, SupplierForm, VaccineForm, VaccineBatchForm,
-                    StockTransactionForm, VaccinationRecordForm, RestockRequestForm)
+from .forms import (FacilityForm, SupplierForm, SupplierCreateForm, VaccineForm,
+                    VaccineBatchForm, StockTransactionForm, VaccinationRecordForm,
+                    RestockRequestForm)
 from alerts.models import Alert
-from accounts.decorators import permission_required
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -117,22 +117,100 @@ def supplier_list(request):
     if not request.user.is_admin:
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
-    suppliers = Supplier.objects.all().order_by('name')
+    suppliers = Supplier.objects.select_related('user_account').order_by('name')
     return render(request, 'inventory/suppliers.html', {'suppliers': suppliers})
 
 
 @login_required
 def supplier_add(request):
+    return redirect('supplier_create')
+
+
+@login_required
+def supplier_create(request):
+    """Admin creates a supplier AND their distributor login account atomically."""
     if not request.user.is_admin:
         messages.error(request, 'Access denied.')
-        return redirect('supplier_list')
-    form = SupplierForm(request.POST or None)
+        return redirect('dashboard')
+    from accounts.models import User
+    from django.db import transaction as db_transaction
+    form = SupplierCreateForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        supplier = form.save()
-        messages.success(request, f'Supplier "{supplier.name}" added.')
-        return redirect('supplier_list')
-    return render(request, 'inventory/supplier_form.html', {
-        'form': form, 'title': 'Add Supplier'
+        try:
+            with db_transaction.atomic():
+                d = form.cleaned_data
+                user_account = User.objects.create_user(
+                    username=d['username'],
+                    password=d['password'],
+                    email=d['contact_email'],
+                    first_name=d['name'],
+                    phone=d['phone'],
+                    role='distributor',
+                )
+                supplier = Supplier.objects.create(
+                    name=d['name'],
+                    contact_email=d['contact_email'],
+                    phone=d['phone'],
+                    address=d.get('address', ''),
+                    user_account=user_account,
+                )
+            messages.success(
+                request,
+                f'Supplier "{supplier.name}" created. Login username: {d["username"]}'
+            )
+            return redirect('supplier_list')
+        except Exception as e:
+            messages.error(request, f'Failed to create supplier. ({e})')
+    return render(request, 'inventory/supplier_create.html', {
+        'form': form, 'title': 'Add Supplier / Distributor',
+    })
+
+
+@login_required
+def distributor_portal(request):
+    """Distributor/supplier portal — stock overview, restock requests, disbursement logs."""
+    if not request.user.is_distributor:
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+
+    supplier = getattr(request.user, 'supplier_profile', None)
+
+    # Restock requests assigned to this supplier or unassigned pending ones
+    if supplier:
+        restock_qs = RestockRequest.objects.filter(
+            supplier=supplier, status__in=['pending', 'acknowledged', 'fulfilled']
+        ).select_related('vaccine', 'facility', 'requested_by').order_by('-date_requested')
+    else:
+        restock_qs = RestockRequest.objects.filter(
+            status='pending'
+        ).select_related('vaccine', 'facility', 'requested_by').order_by('-date_requested')
+
+    # Stock logs — transactions performed by this distributor
+    stock_logs = StockTransaction.objects.filter(
+        performed_by=request.user
+    ).select_related('batch__vaccine', 'facility').order_by('-transaction_date')[:20]
+
+    # Current stock per vaccine (system-wide, so supplier sees what the facility has)
+    vaccine_stock = []
+    for v in Vaccine.objects.order_by('name'):
+        total = StockTransaction.objects.filter(batch__vaccine=v).aggregate(
+            bal=Sum(Case(
+                When(transaction_type='delivery', then='quantity_moved'),
+                When(transaction_type__in=['usage', 'expiry', 'disposal'],
+                     then=F('quantity_moved') * -1),
+                default=0, output_field=IntegerField()
+            ))
+        )['bal'] or 0
+        vaccine_stock.append({
+            'vaccine': v, 'stock': total,
+            'status': 'out' if total <= 0 else 'low' if total < v.min_stock_level else 'ok'
+        })
+
+    return render(request, 'inventory/distributor_portal.html', {
+        'supplier': supplier,
+        'restock_requests': restock_qs,
+        'stock_logs': stock_logs,
+        'vaccine_stock': vaccine_stock,
     })
 
 
@@ -266,8 +344,7 @@ def stock_list(request):
                          then=F('quantity_moved') * -1),
                     default=0, output_field=IntegerField()
                 ))
-        )['bal'] or 0
-
+            )['bal'] or 0
         stock_summary.append({
             'vaccine': v,
             'remaining': bal,
@@ -322,7 +399,6 @@ def vaccination_list(request):
 
 
 @login_required
-@permission_required('can_record_vaccination')
 def vaccination_add(request):
     if request.user.is_distributor:
         messages.error(request, 'Access denied.')
@@ -428,7 +504,6 @@ def restock_update_status(request, pk):
 # ─── REPORTS ──────────────────────────────────────────────────────────────────
 
 @login_required
-@permission_required('can_view_reports')
 def reports(request):
     if not (request.user.is_admin or request.user.is_health_worker):
         messages.error(request, 'Access denied.')
@@ -472,7 +547,7 @@ def reports(request):
         .order_by('month')
     )
     line_labels = [e['month'].strftime('%b %Y') for e in monthly_qs]
-    line_data = [e['count'] for e in monthly_qs]
+    line_data   = [e['count'] for e in monthly_qs]
 
     # ── Pie chart 1: vaccine type distribution ──
     vaccine_dist_qs = (
@@ -482,8 +557,7 @@ def reports(request):
         .order_by('-count')[:8]
     )
     pie_vaccine_labels = [e['batch__vaccine__name'] for e in vaccine_dist_qs]
-    pie_vaccine_data = [e['count'] for e in vaccine_dist_qs]
-    pie_vaccine_data = [e['count'] for e in vaccine_dist_qs]
+    pie_vaccine_data   = [e['count'] for e in vaccine_dist_qs]
 
     # ── Pie chart 2: patients per facility ──
     patient_facility_qs = (
@@ -492,12 +566,8 @@ def reports(request):
         .annotate(count=Count('id'))
         .order_by('-count')[:8]
     )
-    pie_facility_labels = [e['facility__name']
-                           or 'Unknown' for e in patient_facility_qs]
-    pie_facility_data = [e['count'] for e in patient_facility_qs]
-    pie_facility_labels = [e['facility__name']
-                           or 'Unknown' for e in patient_facility_qs]
-    pie_facility_data = [e['count'] for e in patient_facility_qs]
+    pie_facility_labels = [e['facility__name'] or 'Unknown' for e in patient_facility_qs]
+    pie_facility_data   = [e['count'] for e in patient_facility_qs]
 
     # ── Stock overview per vaccine ──
     vaccine_stock = []
@@ -518,14 +588,10 @@ def reports(request):
 
     # ── Summary stats ──
     total_vacc_qs = VaccinationRecord.objects.all()
-    total_pat_qs = Patient.objects.all()
+    total_pat_qs  = Patient.objects.all()
     if facility_filter:
         total_vacc_qs = total_vacc_qs.filter(facility=facility_filter)
-        total_pat_qs = total_pat_qs.filter(facility=facility_filter)
-    total_pat_qs = Patient.objects.all()
-    if facility_filter:
-        total_vacc_qs = total_vacc_qs.filter(facility=facility_filter)
-        total_pat_qs = total_pat_qs.filter(facility=facility_filter)
+        total_pat_qs  = total_pat_qs.filter(facility=facility_filter)
 
     context = {
         # Charts
@@ -551,5 +617,4 @@ def reports(request):
         'range_options':        [('3', 'Last 3 months'), ('6', 'Last 6 months'),
                                  ('12', 'Last 12 months'), ('24', 'Last 2 years')],
     }
-    return render(request, 'inventory/reports.html', context)
     return render(request, 'inventory/reports.html', context)

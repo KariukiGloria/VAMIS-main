@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% block title %}Supplier Portal{% endblock %}
+{% block page_title %}Supplier Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ supplier.name|default:"Supplier Portal" }}</h2>
+    <p class="text-muted mb-0" style="font-size:0.9rem;">
+      <i class="fas fa-store me-1"></i> Distributor / Supplier view
+    </p>
+  </div>
+</div>
+
+{# ── STOCK OVERVIEW ── #}
+<div class="card mb-3">
+  <div class="card-header">
+    <span><i class="fas fa-warehouse me-2" style="color:var(--blue)"></i>Current stock at facility</span>
+  </div>
+  <div class="card-body p-0">
+    <div style="overflow-x:auto;">
+      <table class="table-vamis w-100">
+        <thead>
+          <tr><th>Vaccine</th><th>Target disease</th><th>Current stock</th><th>Min. level</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+        {% for vs in vaccine_stock %}
+        <tr>
+          <td><strong>{{ vs.vaccine.name }}</strong></td>
+          <td style="color:var(--text-muted);">{{ vs.vaccine.target_disease }}</td>
+          <td>
+            <span style="font-weight:800;font-size:1.2rem;color:{% if vs.status == 'out' %}#dc2626{% elif vs.status == 'low' %}#d97706{% else %}#16a34a{% endif %};">
+              {{ vs.stock }}
+            </span>
+          </td>
+          <td style="color:var(--text-muted);">{{ vs.vaccine.min_stock_level }}</td>
+          <td>
+            {% if vs.status == 'out' %}<span class="badge-vamis badge-red">Out of stock</span>
+            {% elif vs.status == 'low' %}<span class="badge-vamis badge-orange">Low stock</span>
+            {% else %}<span class="badge-vamis badge-green">OK</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center" style="padding:24px;color:var(--text-muted);">No vaccines in system</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  {# ── RESTOCK REQUESTS ── #}
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-truck me-2" style="color:var(--pink-dark)"></i>Restock requests</span>
+        <a href="{% url 'restock_list' %}" class="btn-outline-vamis" style="font-size:0.8rem;padding:5px 12px;">View all</a>
+      </div>
+      <div class="card-body p-0">
+        {% if restock_requests %}
+        <table class="table-vamis w-100">
+          <thead>
+            <tr><th>Vaccine</th><th>Qty needed</th><th>Facility</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+          {% for r in restock_requests %}
+          <tr>
+            <td><strong>{{ r.vaccine.name }}</strong><div style="font-size:0.78rem;color:var(--text-muted);">{{ r.date_requested|date:"M d, Y" }}</div></td>
+            <td><strong>{{ r.quantity_needed }}</strong></td>
+            <td>{{ r.facility.name }}</td>
+            <td>
+              {% if r.status == 'pending' %}<span class="badge-vamis badge-orange">Pending</span>
+              {% elif r.status == 'acknowledged' %}<span class="badge-vamis badge-blue">Acknowledged</span>
+              {% elif r.status == 'fulfilled' %}<span class="badge-vamis badge-green">Fulfilled</span>
+              {% else %}<span class="badge-vamis badge-grey">{{ r.get_status_display }}</span>{% endif %}
+            </td>
+            <td>
+              {% if r.status == 'pending' %}
+              <form method="post" action="{% url 'restock_update_status' r.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="acknowledged">
+                <button type="submit" class="btn-outline-vamis" style="font-size:0.78rem;padding:4px 10px;">Acknowledge</button>
+              </form>
+              {% elif r.status == 'acknowledged' %}
+              <form method="post" action="{% url 'restock_update_status' r.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="fulfilled">
+                <button type="submit" class="btn-vamis" style="font-size:0.78rem;padding:4px 10px;">Disburse</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><i class="fas fa-truck"></i><p>No restock requests</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── STOCK LOGS ── #}
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-history me-2" style="color:var(--blue)"></i>My disbursement logs</span>
+      </div>
+      <div class="card-body p-0">
+        {% if stock_logs %}
+        <table class="table-vamis w-100">
+          <thead><tr><th>Vaccine</th><th>Type</th><th>Qty</th><th>Date</th></tr></thead>
+          <tbody>
+          {% for t in stock_logs %}
+          <tr>
+            <td style="font-size:0.875rem;"><strong>{{ t.batch.vaccine.name }}</strong></td>
+            <td><span class="badge-vamis {% if t.transaction_type == 'delivery' %}badge-green{% else %}badge-grey{% endif %}">{{ t.get_transaction_type_display }}</span></td>
+            <td><strong>{{ t.quantity_moved }}</strong></td>
+            <td style="font-size:0.8rem;color:var(--text-muted);">{{ t.transaction_date|date:"M d" }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" style="padding:32px 0;"><i class="fas fa-history"></i><p>No transactions yet</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

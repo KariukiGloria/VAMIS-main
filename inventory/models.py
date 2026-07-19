@@ -29,6 +29,13 @@ class Supplier(models.Model):
     contact_email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     address = models.TextField(blank=True)
+    user_account = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='supplier_profile',
+        help_text='Linked distributor login account'
+    )
 
     def __str__(self):
         return self.name

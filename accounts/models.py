@@ -50,6 +50,12 @@ class User(AbstractUser):
         verbose_name='user permissions',
     )
 
+    def save(self, *args, **kwargs):
+        # Superusers are always admins — fixes createsuperuser defaulting to health_worker
+        if self.is_superuser and self.role == 'health_worker':
+            self.role = 'admin'
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.get_full_name() or self.username} ({self.get_role_display()})"
 
@@ -64,6 +70,10 @@ class User(AbstractUser):
     @property
     def is_distributor(self):
         return self.role == 'distributor'
+
+    @property
+    def has_supplier_profile(self):
+        return hasattr(self, 'supplier_profile') and self.supplier_profile is not None
 
     @property
     def is_patient(self):

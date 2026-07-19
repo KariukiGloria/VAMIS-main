@@ -3,8 +3,10 @@
 {% block page_title %}Facilities{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h2>Facilities</h2>
+  <h2>Facility</h2>
+  {% if not facilities %}
   <a href="{% url 'facility_add' %}" class="btn-vamis"><i class="fas fa-plus"></i> Add Facility</a>
+  {% endif %}
 </div>
 <div class="row g-3">
 {% for f in facilities %}
